@@ -250,7 +250,7 @@ class LeggedRobotRec(BaseTask):
         com_height = self.base_positions[:, 2]
         # print(com_height)
         self.rew_buf_list[:, 0] =  self.stage_buf[:, 0]*(-torch.clamp(com_height - 0.2, min=0.0))
-        self.rew_buf_list[:, 0] += self.stage_buf[:, 1]*(-torch.abs(com_height - 0.18))*10.0
+        self.rew_buf_list[:, 0] += self.stage_buf[:, 1]*(-torch.abs(com_height - 0.2))*20.0
         self.rew_buf_list[:, 0] += self.stage_buf[:, 2]*(-torch.clamp(com_height - 0.2, min=0.0))
         self.rew_buf_list[:, 0] += self.stage_buf[:, 3]*(-torch.clamp(com_height - 0.2, min=0.0))
         self.rew_buf_list[:, 0] += self.stage_buf[:, 4]*(-torch.abs(com_height - 0.33))*20.0
@@ -280,12 +280,14 @@ class LeggedRobotRec(BaseTask):
         base_ang_vels = quat_rotate_inverse(self.base_quaternions, self.base_ang_vels)
         vel_penalty = torch.abs(base_lin_vels[:, 0]) + torch.abs(base_lin_vels[:, 1]) + torch.abs(base_ang_vels[:, 2])
         vel_x_pen = torch.abs(base_lin_vels[:, 0]) + torch.abs(base_ang_vels[:, 1]) + torch.abs(base_ang_vels[:, 2])
+        ang_pen = torch.norm(base_ang_vels[:, :], dim=1)
         self.rew_buf_list[:, 3] =  self.stage_buf[:, 0]*(-vel_penalty)
         self.rew_buf_list[:, 3] += self.stage_buf[:, 1]*(-vel_penalty)
-        self.rew_buf_list[:, 3] += self.stage_buf[:, 2]*((base_ang_vel_x < 4.0*np.pi).type(torch.float)*base_ang_vel_x)*5.0
+        self.rew_buf_list[:, 3] += self.stage_buf[:, 2]*((base_ang_vel_x < 3.2*np.pi).type(torch.float)*base_ang_vel_x)*5.0
         self.rew_buf_list[:, 3] += self.stage_buf[:, 2]*(-vel_x_pen)
-        self.rew_buf_list[:, 3] += self.stage_buf[:, 3]*((base_ang_vel_x < 4.0*np.pi).type(torch.float)*base_ang_vel_x)*2.0
+        self.rew_buf_list[:, 3] += self.stage_buf[:, 3]*((base_ang_vel_x < 2.0*np.pi).type(torch.float)*base_ang_vel_x)*2.0
         self.rew_buf_list[:, 3] += self.stage_buf[:, 4]*(-vel_penalty)
+        self.rew_buf_list[:, 3] += self.stage_buf[:, 4]*(-ang_pen)*2.0
         # energy
         self.rew_buf_list[:, 4] = -torch.square(self.dof_torques).mean(dim=-1)
         # style
