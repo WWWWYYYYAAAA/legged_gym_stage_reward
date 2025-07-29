@@ -39,6 +39,14 @@ from .cassie.cassie import Cassie
 from .cassie.cassie_config import CassieRoughCfg, CassieRoughCfgPPO
 from .a1.a1_config import A1RoughCfg, A1RoughCfgPPO
 
+from .base.legged_robot_side_roll import LeggedRobotSR
+from legged_gym.envs.zsl1.zsl1_sideroll_config import ZSL1SideRollCfg, ZSL1SideRollCfgPPO
+from .base.legged_robot_back_flip import LeggedRobotBF
+from legged_gym.envs.zsl1.zsl1_backflip_config import ZSL1BackflipCfg, ZSL1BackflipCfgPPO
+from .base.legged_robot_back_flip2 import LeggedRobotBF2
+from legged_gym.envs.zsl1.zsl1_backflip2_config import ZSL1BF2Cfg, ZSL1BF2CfgPPO
+from .base.legged_robot_square import LeggedRobotSquare
+from legged_gym.envs.zsl1.zsl1_square_config import ZSL1SquareCfg, ZSL1SquareCfgPPO
 
 import os
 
@@ -49,3 +57,7 @@ task_registry.register( "anymal_c_flat", Anymal, AnymalCFlatCfg(), AnymalCFlatCf
 task_registry.register( "anymal_b", Anymal, AnymalBRoughCfg(), AnymalBRoughCfgPPO() )
 task_registry.register( "a1", LeggedRobot, A1RoughCfg(), A1RoughCfgPPO() )
 task_registry.register( "cassie", Cassie, CassieRoughCfg(), CassieRoughCfgPPO() )
+task_registry.register( "zsl1sideroll", LeggedRobotSR, ZSL1SideRollCfg(), ZSL1SideRollCfgPPO() )
+task_registry.register( "zsl1backflip", LeggedRobotBF, ZSL1BackflipCfg(), ZSL1BackflipCfgPPO() )
+task_registry.register( "zsl1backflip2", LeggedRobotBF2, ZSL1BF2Cfg(), ZSL1BF2CfgPPO() )
+task_registry.register( "square", LeggedRobotSquare, ZSL1SquareCfg(), ZSL1SquareCfgPPO() )
