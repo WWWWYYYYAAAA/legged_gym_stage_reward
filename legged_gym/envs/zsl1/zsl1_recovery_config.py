@@ -30,7 +30,7 @@
 
 from legged_gym.envs.base.legged_robot_config import LeggedRobotCfg, LeggedRobotCfgPPO
 
-class ZSL1SideRollCfg( LeggedRobotCfg ):
+class ZSL1RecCfg( LeggedRobotCfg ):
     class env:
         num_envs = 4096
         num_one_step_observations = 45
@@ -42,7 +42,7 @@ class ZSL1SideRollCfg( LeggedRobotCfg ):
         episode_length_s = 20 # episode length in seconds
 
     class init_state( LeggedRobotCfg.init_state ):
-        pos = [0.0, 0.0, 0.35] # x,y,z [m]
+        pos = [0.0, 0.0, 0.1] # x,y,z [m]
         default_joint_angles = { # = target angles [rad] when action = 0.0
             # 'FL_ABAD_JOINT': 0.1,   # [rad]
             # 'RL_ABAD_JOINT': 0.1,   # [rad]
@@ -75,6 +75,22 @@ class ZSL1SideRollCfg( LeggedRobotCfg ):
         }
 
         crawled_joint_angles = {
+            'FL_hip_joint': -0.1,   # [rad]
+            'RL_hip_joint': -0.1,   # [rad]
+            'FR_hip_joint': 0.1 ,  # [rad]
+            'RR_hip_joint': 0.1,   # [rad]
+
+            'FL_thigh_joint': 2.5,     # [rad]
+            'RL_thigh_joint': 2.5,   # [rad]
+            'FR_thigh_joint': 2.5,     # [rad]
+            'RR_thigh_joint': 2.5,   # [rad]
+
+            'FL_calf_joint': -2.5,   # [rad]
+            'RL_calf_joint': -2.5,    # [rad]
+            'FR_calf_joint': -2.5,  # [rad]
+            'RR_calf_joint': -2.5,    # [rad]
+        }
+        clear_joint_angles = {
             'FL_hip_joint': -0.0,   # [rad]
             'RL_hip_joint': -0.0,   # [rad]
             'FR_hip_joint': 0.0 ,  # [rad]
@@ -90,23 +106,7 @@ class ZSL1SideRollCfg( LeggedRobotCfg ):
             'FR_calf_joint': -2.5,  # [rad]
             'RR_calf_joint': -2.5,    # [rad]
         }
-        prepared_joint_angles = {
-            'FL_hip_joint': -0.0,   # [rad]
-            'RL_hip_joint': -0.0,   # [rad]
-            'FR_hip_joint': 0.0 ,  # [rad]
-            'RR_hip_joint': 0.0,   # [rad]
-
-            'FL_thigh_joint': 2.0,     # [rad]
-            'RL_thigh_joint': 2.0,   # [rad]
-            'FR_thigh_joint': 2.0,     # [rad]
-            'RR_thigh_joint': 2.0,   # [rad]
-
-            'FL_calf_joint': -2.5,   # [rad]
-            'RL_calf_joint': -2.5,    # [rad]
-            'FR_calf_joint': -2.5,  # [rad]
-            'RR_calf_joint': -2.5,    # [rad]
-        }
-        rot = [0.0, 0.0, 0.0, 1.0] # x,y,z,w [quat]
+        rot = [1.0, 0.0, 0.0, 0.0] # x,y,z,w [quat]
         lin_vel = [0.0, 0.0, 0.0]  # x,y,z [m/s]
         ang_vel = [0.0, 0.0, 0.0]  # x,y,z [rad/s]
 
@@ -138,8 +138,8 @@ class ZSL1SideRollCfg( LeggedRobotCfg ):
     class control( LeggedRobotCfg.control ):
         # PD Drive parameters:
         control_type = 'P'
-        stiffness = {'joint': 20.0}  # [N*m/rad]
-        damping = {'joint': 0.5}     # [N*m*s/rad]
+        stiffness = {'joint': 40.0}  # [N*m/rad]
+        damping = {'joint': 1.0}     # [N*m*s/rad]
         # action scale: target angle = actionScale * action + defaultAngle
         action_scale = 0.25
         # decimation: Number of control action updates @ sim DT per policy DT
@@ -194,12 +194,12 @@ class ZSL1SideRollCfg( LeggedRobotCfg ):
             
 
 
-class ZSL1SideRollCfgPPO( LeggedRobotCfgPPO ):
+class ZSL1RecCfgPPO( LeggedRobotCfgPPO ):
     class algorithm( LeggedRobotCfgPPO.algorithm ):
         entropy_coef = 0.01
     class runner( LeggedRobotCfgPPO.runner ):
         run_name = ''
-        experiment_name = 'sideroll_zsl1'
+        experiment_name = 'recovery_zsl1'
         max_iterations = 500000
 
   

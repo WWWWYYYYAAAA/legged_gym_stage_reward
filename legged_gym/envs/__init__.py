@@ -48,6 +48,9 @@ from legged_gym.envs.zsl1.zsl1_backflip2_config import ZSL1BF2Cfg, ZSL1BF2CfgPPO
 from .base.legged_robot_square import LeggedRobotSquare
 from legged_gym.envs.zsl1.zsl1_square_config import ZSL1SquareCfg, ZSL1SquareCfgPPO
 
+from .base.legged_robot_recovery import LeggedRobotRec
+from legged_gym.envs.zsl1.zsl1_recovery_config import ZSL1RecCfg, ZSL1RecCfgPPO
+
 import os
 
 from legged_gym.utils.task_registry import task_registry
@@ -61,3 +64,4 @@ task_registry.register( "zsl1sideroll", LeggedRobotSR, ZSL1SideRollCfg(), ZSL1Si
 task_registry.register( "zsl1backflip", LeggedRobotBF, ZSL1BackflipCfg(), ZSL1BackflipCfgPPO() )
 task_registry.register( "zsl1backflip2", LeggedRobotBF2, ZSL1BF2Cfg(), ZSL1BF2CfgPPO() )
 task_registry.register( "square", LeggedRobotSquare, ZSL1SquareCfg(), ZSL1SquareCfgPPO() )
+task_registry.register( "rec", LeggedRobotRec, ZSL1RecCfg(), ZSL1RecCfgPPO() )

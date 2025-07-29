@@ -183,6 +183,7 @@ class LeggedRobotSquare(BaseTask):
 
         # reset buffers
         self.last_actions[env_ids] = 0.
+        self.last_last_actions[:] = 0.
         self.last_dof_vel[env_ids] = 0.
         self.feet_air_time[env_ids] = 0.
         self.episode_length_buf[env_ids] = 0
@@ -896,7 +897,7 @@ class LeggedRobotSquare(BaseTask):
         # Penalize base height away from target
         base_height = torch.mean(self.root_states[:, 2].unsqueeze(1) - self.measured_heights, dim=1)
         print("\r", self.root_states[:, 2].unsqueeze(1)[0], end="")
-        return torch.square(base_height - self.cfg.rewards.base_height_target)
+        return torch.abs(base_height - self.cfg.rewards.base_height_target)
     
     def _reward_torques(self):
         # Penalize torques
@@ -980,14 +981,21 @@ class LeggedRobotSquare(BaseTask):
     def _reward_motion_stage(self):
         StageRew = torch.zeros(self.num_envs, device=self.device, dtype=torch.float)
         #stand rew
-        StageRew += -self.stage_commands[:,0]*torch.sum(torch.abs(self.dof_pos - self.default_dof_pos), dim=1)*0.1
+        StageRew += -self.stage_commands[:,0]*torch.sum(torch.abs(self.dof_pos - self.default_dof_pos), dim=1)*1.0
+        desir_move = torch.zeros((self.num_envs, 2), device=self.device, dtype=torch.float)
+        lin_vel_error = torch.sum(torch.square(desir_move - self.base_lin_vel[:, :2]), dim=1)
+        StageRew += self.stage_commands[:,0]*torch.exp(-lin_vel_error/self.cfg.rewards.tracking_sigma)*2.0
+        desir_move = torch.zeros(self.num_envs, device=self.device, dtype=torch.float)
+        ang_vel_error = torch.square(desir_move - self.base_ang_vel[:, 2])
+        StageRew += self.stage_commands[:,0]*torch.exp(-ang_vel_error/self.cfg.rewards.tracking_sigma)*1.0
         #run rew
         desir_move = torch.zeros((self.num_envs, 2), device=self.device, dtype=torch.float)
         desir_move[:,0] = 1.0
         lin_vel_error = torch.sum(torch.square(desir_move - self.base_lin_vel[:, :2]), dim=1)
-        StageRew += self.stage_commands[:,1]*torch.exp(-lin_vel_error/self.cfg.rewards.tracking_sigma)
+        StageRew += self.stage_commands[:,1]*torch.exp(-lin_vel_error/self.cfg.rewards.tracking_sigma)*1.0
         #turn rew
         desir_move = torch.zeros(self.num_envs, device=self.device, dtype=torch.float)
+        desir_move[:] = 1.0
         ang_vel_error = torch.square(desir_move - self.base_ang_vel[:, 2])
         StageRew += self.stage_commands[:,2]*torch.exp(-ang_vel_error/self.cfg.rewards.tracking_sigma)*0.5
         return StageRew

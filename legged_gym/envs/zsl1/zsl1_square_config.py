@@ -109,7 +109,7 @@ class ZSL1SquareCfg( LeggedRobotCfg ):
             curriculum = False
             max_curriculum = 2.0
             num_commands = 4 # default: lin_vel_x, lin_vel_y, ang_vel_yaw, heading (in heading mode ang_vel_yaw is recomputed from heading error)
-            resampling_time = 20. # time before command are changed[s]
+            resampling_time = 5. # time before command are changed[s]
             heading_command = False # if true: compute ang vel command from heading error
             class ranges( LeggedRobotCfg.commands.ranges):
                 lin_vel_x = [-4.0, 4.0] # min max [m/s]
@@ -123,7 +123,7 @@ class ZSL1SquareCfg( LeggedRobotCfg ):
         foot_name = "foot"
         calf_name = "calf"
         penalize_contacts_on = ["thigh", "calf", "base"]
-        terminate_after_contacts_on = ["base", "thigh"]
+        terminate_after_contacts_on = ["base"]
         privileged_contacts_on = ["base", "thigh", "calf"]
         self_collisions = 1 # 1 to disable, 0 to enable...bitwise filter
         flip_visual_attachments = False # Some .obj meshes must be flipped from y-up to z-up
@@ -136,12 +136,12 @@ class ZSL1SquareCfg( LeggedRobotCfg ):
         class scales( LeggedRobotCfg.rewards.scales ):
             torques = -0.0002
             dof_pos_limits = -10.0
-            base_height = -20.0
+            base_height = -10.0
             motion_stage = 1.0
             lin_vel_z = -2.0
-            ang_vel_xy = -5.0
-            termination = -1000.0
-            orientatio = -5.0
+            ang_vel_xy = -0.05
+            termination = -1.0
+            orientation = -5.0
             smoothness = -0.01
             collision = -1.0
 
