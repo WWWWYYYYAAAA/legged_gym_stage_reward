@@ -289,7 +289,7 @@ class LeggedRobotRec(BaseTask):
         self.rew_buf_list[:, 3] += self.stage_buf[:, 4]*(-vel_penalty)
         self.rew_buf_list[:, 3] += self.stage_buf[:, 4]*(-ang_pen)*2.0
         # energy
-        self.rew_buf_list[:, 4] = -torch.square(self.dof_torques).mean(dim=-1)
+        self.rew_buf_list[:, 4] = self.stage_buf[:, 4]*5.0
         # style
         self.rew_buf_list[:, 5] =  self.stage_buf[:, 0]*(-torch.abs(self.dof_positions - self.default_dof_pos).mean(dim=-1))*10
         # print(self.dof_positions - self.crawled_dof_positions)
@@ -858,6 +858,23 @@ class LeggedRobotRec(BaseTask):
                 if self.cfg.control.control_type in ["P", "V"]:
                     print(f"PD gain of joint {name} were not defined, setting them to zero")
         self.crawled_dof_positions = self.crawled_dof_positions.unsqueeze(0)
+        self.clear_dof_positions = torch.zeros(self.num_dof, dtype=torch.float, device=self.device, requires_grad=False)
+        for i in range(self.num_dofs):
+            name = self.dof_names[i]
+            angle = self.cfg.init_state.clear_joint_angles[name]
+            self.clear_dof_positions[i] = angle
+            found = False
+            for dof_name in self.cfg.control.stiffness.keys():
+                if dof_name in name:
+                    self.p_gains[i] = self.cfg.control.stiffness[dof_name]
+                    self.d_gains[i] = self.cfg.control.damping[dof_name]
+                    found = True
+            if not found:
+                self.p_gains[i] = 0.
+                self.d_gains[i] = 0.
+                if self.cfg.control.control_type in ["P", "V"]:
+                    print(f"PD gain of joint {name} were not defined, setting them to zero")
+        self.clear_dof_positions = self.clear_dof_positions.unsqueeze(0)
         print(self.default_dof_pos)
         print(self.crawled_dof_positions)
 
