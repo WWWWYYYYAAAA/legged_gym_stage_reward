@@ -39,10 +39,11 @@ class ZSL1RecCfg( LeggedRobotCfg ):
         num_actions = 12
         env_spacing = 3.  # not used with heightfields/trimeshes 
         send_timeouts = True # send time out information to the algorithm
-        episode_length_s = 20 # episode length in seconds
+        episode_length_s = 30 # episode length in seconds
 
     class init_state( LeggedRobotCfg.init_state ):
         pos = [0.0, 0.0, 0.1] # x,y,z [m]
+        pos2 = [0.0, 0.0, 0.2]
         default_joint_angles = { # = target angles [rad] when action = 0.0
             # 'FL_ABAD_JOINT': 0.1,   # [rad]
             # 'RL_ABAD_JOINT': 0.1,   # [rad]
@@ -75,38 +76,39 @@ class ZSL1RecCfg( LeggedRobotCfg ):
         }
 
         crawled_joint_angles = {
-            'FL_hip_joint': -0.1,   # [rad]
-            'RL_hip_joint': -0.1,   # [rad]
-            'FR_hip_joint': 0.1 ,  # [rad]
-            'RR_hip_joint': 0.1,   # [rad]
+            'FL_hip_joint': 0.15,   # [rad]
+            'RL_hip_joint': 0.15,   # [rad]
+            'FR_hip_joint': -0.15,  # [rad]
+            'RR_hip_joint': -0.15,   # [rad]
 
             'FL_thigh_joint': 2.5,     # [rad]
             'RL_thigh_joint': 2.5,   # [rad]
             'FR_thigh_joint': 2.5,     # [rad]
             'RR_thigh_joint': 2.5,   # [rad]
 
-            'FL_calf_joint': -2.5,   # [rad]
-            'RL_calf_joint': -2.5,    # [rad]
-            'FR_calf_joint': -2.5,  # [rad]
-            'RR_calf_joint': -2.5,    # [rad]
+            'FL_calf_joint': -2.2,   # [rad]
+            'RL_calf_joint': -2.2,    # [rad]
+            'FR_calf_joint': -2.2,  # [rad]
+            'RR_calf_joint': -2.2,    # [rad]
         }
         clear_joint_angles = {
-            'FL_hip_joint': -0.0,   # [rad]
-            'RL_hip_joint': -0.0,   # [rad]
-            'FR_hip_joint': 0.0 ,  # [rad]
-            'RR_hip_joint': 0.0,   # [rad]
+            'FL_hip_joint': -0.15,   # [rad]
+            'RL_hip_joint': -0.15,   # [rad]
+            'FR_hip_joint': 0.15,  # [rad]
+            'RR_hip_joint': 0.15,   # [rad]
 
-            'FL_thigh_joint': 2.0,     # [rad]
-            'RL_thigh_joint': 2.0,   # [rad]
-            'FR_thigh_joint': 2.0,     # [rad]
-            'RR_thigh_joint': 2.0,   # [rad]
+            'FL_thigh_joint': 2.5,     # [rad]
+            'RL_thigh_joint': 2.5,   # [rad]
+            'FR_thigh_joint': 2.5,     # [rad]
+            'RR_thigh_joint': 2.5,   # [rad]
 
-            'FL_calf_joint': -2.5,   # [rad]
-            'RL_calf_joint': -2.5,    # [rad]
-            'FR_calf_joint': -2.5,  # [rad]
-            'RR_calf_joint': -2.5,    # [rad]
+            'FL_calf_joint': -1.7,   # [rad]
+            'RL_calf_joint': -1.7,    # [rad]
+            'FR_calf_joint': -1.7,  # [rad]
+            'RR_calf_joint': -1.7,    # [rad]
         }
         rot = [1.0, 0.0, 0.0, 0.0] # x,y,z,w [quat]
+        rot2 = [0.0, 0.0, 0.0, 1.0] # x,y,z,w [quat]
         lin_vel = [0.0, 0.0, 0.0]  # x,y,z [m/s]
         ang_vel = [0.0, 0.0, 0.0]  # x,y,z [rad/s]
 
@@ -180,15 +182,19 @@ class ZSL1RecCfg( LeggedRobotCfg ):
     
     class rewards( LeggedRobotCfg.rewards ):
         soft_dof_pos_limit = 0.9
+        soft_dof_vel_limit = 0.9
+        soft_torque_limit = 0.9
         base_height_target = 0.33
         tracking_sigma = 0.33
         only_positive_rewards = False
         class scales( LeggedRobotCfg.rewards.scales ):
             torques = -0.0002
             dof_pos_limits = -10.0
-            ang_vel_y = -0.05
+            dof_vel_limits = -1.0
+            torque_limits = -1.0
+            # ang_vel_y = -0.05
             # termination = -1.0
-            orientation_x = -5.0
+            # orientation_x = -5.0
             sideroll = 1.0
             smoothness = -0.01
             

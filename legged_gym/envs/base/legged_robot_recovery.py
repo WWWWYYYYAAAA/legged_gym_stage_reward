@@ -358,6 +358,7 @@ class LeggedRobotRec(BaseTask):
             self.stage_buf[:, 2] == 1.0, self.is_half_turn_buf).type(torch.float32)
         self.stage_buf[:, 2] = (1.0 - from2_to3)*self.stage_buf[:, 2]
         self.stage_buf[:, 3] = from2_to3 + (1.0 - from2_to3)*self.stage_buf[:, 3]
+        # self.lie_time_buf[:] += self.stage_buf[:, 3]*self.control_dt
         from1_to2 = torch.logical_and(
             self.stage_buf[:, 1] == 1.0, com_height >= 0.15).type(torch.float32)
         # print("######", com_height)

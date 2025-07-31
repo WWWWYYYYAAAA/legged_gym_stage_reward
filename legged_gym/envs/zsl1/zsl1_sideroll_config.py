@@ -75,10 +75,10 @@ class ZSL1SideRollCfg( LeggedRobotCfg ):
         }
 
         crawled_joint_angles = {
-            'FL_hip_joint': -0.0,   # [rad]
-            'RL_hip_joint': -0.0,   # [rad]
-            'FR_hip_joint': 0.0 ,  # [rad]
-            'RR_hip_joint': 0.0,   # [rad]
+            'FL_hip_joint': -0.1,   # [rad]
+            'RL_hip_joint': -0.1,   # [rad]
+            'FR_hip_joint': 0.1 ,  # [rad]
+            'RR_hip_joint': 0.1,   # [rad]
 
             'FL_thigh_joint': 2.0,     # [rad]
             'RL_thigh_joint': 2.0,   # [rad]
