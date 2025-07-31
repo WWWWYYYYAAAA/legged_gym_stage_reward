@@ -196,7 +196,7 @@ class ZSL1RecCfg( LeggedRobotCfg ):
             # termination = -1.0
             # orientation_x = -5.0
             sideroll = 1.0
-            smoothness = -0.01
+            smoothness = -0.1
             
 
 

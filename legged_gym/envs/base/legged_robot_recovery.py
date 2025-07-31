@@ -244,7 +244,7 @@ class LeggedRobotRec(BaseTask):
         """
         self.rew_buf[:] = 0.
         self.rew_buf_list[:,:]=0.
-        
+        body_z = quat_rotate_inverse(self.base_quaternions, self.world_z)
         # stage reward
         #########
         com_height = self.base_positions[:, 2]
@@ -253,9 +253,11 @@ class LeggedRobotRec(BaseTask):
         self.rew_buf_list[:, 0] += self.stage_buf[:, 1]*(-torch.abs(com_height - 0.2))*20.0
         self.rew_buf_list[:, 0] += self.stage_buf[:, 2]*(-torch.clamp(com_height - 0.2, min=0.0))
         self.rew_buf_list[:, 0] += self.stage_buf[:, 3]*(-torch.clamp(com_height - 0.2, min=0.0))
-        self.rew_buf_list[:, 0] += self.stage_buf[:, 4]*(-torch.abs(com_height - 0.33))*20.0
+        height_minx = com_height -  torch.abs(torch.clamp(-body_z[:, 0], -1.0, 1.0))*0.2
+        height_miny = com_height -  torch.abs(torch.clamp(-body_z[:, 1], -1.0, 1.0))*0.1
+        self.rew_buf_list[:, 0] += self.stage_buf[:, 4]*(torch.exp(-torch.abs(height_minx - 0.33)*10)+torch.exp(-torch.abs(height_miny - 0.33)*10))
         # body balance
-        body_z = quat_rotate_inverse(self.base_quaternions, self.world_z)
+        
         self.rew_buf_list[:, 1] =  self.stage_buf[:, 0]*(-torch.abs(torch.arccos(torch.clamp(body_z[:, 0], -1.0, 1.0)) - np.pi/2.0))
         self.rew_buf_list[:, 1] += self.stage_buf[:, 1]*(-torch.abs(torch.arccos(torch.clamp(body_z[:, 0], -1.0, 1.0)) - np.pi/2.0))
         self.rew_buf_list[:, 1] += self.stage_buf[:, 2]*(-torch.abs(torch.arccos(torch.clamp(body_z[:, 0], -1.0, 1.0)) - np.pi/2.0))
@@ -289,7 +291,7 @@ class LeggedRobotRec(BaseTask):
         self.rew_buf_list[:, 3] += self.stage_buf[:, 4]*(-vel_penalty)
         self.rew_buf_list[:, 3] += self.stage_buf[:, 4]*(-ang_pen)*2.0
         # energy
-        self.rew_buf_list[:, 4] = self.stage_buf[:, 4]*5.0
+        self.rew_buf_list[:, 4] = self.stage_buf[:, 4]*10.0
         # style
         self.rew_buf_list[:, 5] =  self.stage_buf[:, 0]*(-torch.abs(self.dof_positions - self.default_dof_pos).mean(dim=-1))*10
         # print(self.dof_positions - self.crawled_dof_positions)
@@ -300,7 +302,7 @@ class LeggedRobotRec(BaseTask):
         style_penalty =  torch.abs(self.dof_positions[:, :3] - self.crawled_dof_positions[:, :3]).mean(dim=-1)
         style_penalty += torch.abs(self.dof_positions[:, 6:9] - self.crawled_dof_positions[:, 6:9]).mean(dim=-1)
         self.rew_buf_list[:, 5] += self.stage_buf[:, 3]*(-style_penalty)
-        self.rew_buf_list[:, 5] += self.stage_buf[:, 4]*(-torch.abs(self.dof_positions - self.default_dof_pos).mean(dim=-1))*10
+        self.rew_buf_list[:, 5] += self.stage_buf[:, 4]*(-torch.abs(self.dof_positions - self.default_dof_pos).mean(dim=-1))
         # velocity
         # desir_move = torch.zeros((self.num_envs, 3), device=self.device, dtype=torch.float)
         # lin_vel_error = torch.sum(torch.square(desir_move - self.base_lin_vel[:, :3]), dim=1)
