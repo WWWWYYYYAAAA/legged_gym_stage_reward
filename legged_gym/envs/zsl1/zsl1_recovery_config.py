@@ -97,10 +97,10 @@ class ZSL1RecCfg( LeggedRobotCfg ):
             'FR_hip_joint': 0.0,  # [rad]
             'RR_hip_joint': 0.0,   # [rad]
 
-            'FL_thigh_joint': 2.0,     # [rad]
-            'RL_thigh_joint': 2.0,   # [rad]
-            'FR_thigh_joint': 2.0,     # [rad]
-            'RR_thigh_joint': 2.0,   # [rad]
+            'FL_thigh_joint': 2.5,     # [rad]
+            'RL_thigh_joint': 2.5,   # [rad]
+            'FR_thigh_joint': 2.5,     # [rad]
+            'RR_thigh_joint': 2.5,   # [rad]
 
             'FL_calf_joint': -2.65,   # [rad]
             'RL_calf_joint': -2.65,    # [rad]
