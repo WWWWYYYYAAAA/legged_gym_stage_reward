@@ -92,20 +92,20 @@ class ZSL1RecCfg( LeggedRobotCfg ):
             'RR_calf_joint': -2.2,    # [rad]
         }
         clear_joint_angles = {
-            'FL_hip_joint': -0.15,   # [rad]
-            'RL_hip_joint': -0.15,   # [rad]
-            'FR_hip_joint': 0.15,  # [rad]
-            'RR_hip_joint': 0.15,   # [rad]
+            'FL_hip_joint': -0.0,   # [rad]
+            'RL_hip_joint': 0.0,   # [rad]
+            'FR_hip_joint': 0.0,  # [rad]
+            'RR_hip_joint': 0.0,   # [rad]
 
-            'FL_thigh_joint': 2.5,     # [rad]
-            'RL_thigh_joint': 2.5,   # [rad]
-            'FR_thigh_joint': 2.5,     # [rad]
-            'RR_thigh_joint': 2.5,   # [rad]
+            'FL_thigh_joint': 2.0,     # [rad]
+            'RL_thigh_joint': 2.0,   # [rad]
+            'FR_thigh_joint': 2.0,     # [rad]
+            'RR_thigh_joint': 2.0,   # [rad]
 
-            'FL_calf_joint': -1.7,   # [rad]
-            'RL_calf_joint': -1.7,    # [rad]
-            'FR_calf_joint': -1.7,  # [rad]
-            'RR_calf_joint': -1.7,    # [rad]
+            'FL_calf_joint': -2.65,   # [rad]
+            'RL_calf_joint': -2.65,    # [rad]
+            'FR_calf_joint': -2.65,  # [rad]
+            'RR_calf_joint': -2.65,    # [rad]
         }
         rot = [1.0, 0.0, 0.0, 0.0] # x,y,z,w [quat]
         rot2 = [0.0, 0.0, 0.0, 1.0] # x,y,z,w [quat]
