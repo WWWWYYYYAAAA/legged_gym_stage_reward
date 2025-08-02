@@ -256,13 +256,15 @@ class LeggedRobotRec(BaseTask):
         # height_minx = com_height -  torch.abs(torch.clamp(-body_z[:, 0], -1.0, 1.0))*0.2
         # height_miny = com_height -  torch.abs(torch.clamp(-body_z[:, 1], -1.0, 1.0))*0.1
         # self.rew_buf_list[:, 0] += self.stage_buf[:, 4]*(torch.exp(-torch.abs(height_minx - 0.33)*10)+torch.exp(-torch.abs(height_miny - 0.33)*10))
-        self.rew_buf_list[:, 0] +=  self.stage_buf[:, 4]*(-torch.clamp(com_height - 0.25, min=0.0))
-        self.rew_buf_list[:, 0] +=  self.stage_buf[:, 5]*(-torch.clamp(com_height - 0.25, min=0.0))
         height_minx = com_height -  torch.abs(torch.clamp(body_z[:, 0], -1.0, 1.0))*0.2
         height_maxx = com_height +  torch.abs(torch.clamp(body_z[:, 0], -1.0, 1.0))*0.2
         height_miny = com_height -  torch.abs(torch.clamp(body_z[:, 1], -1.0, 1.0))*0.1
+        self.rew_buf_list[:, 0] +=  self.stage_buf[:, 4]*(-torch.clamp(com_height - 0.25, min=0.0))
+        self.rew_buf_list[:, 0] +=  self.stage_buf[:, 5]*(-torch.clamp(com_height - 0.25, min=0.0))
+        h_min = torch.min(height_minx, height_miny)
+        self.rew_buf_list[:, 0] +=  self.stage_buf[:, 5]*(-torch.abs(h_min - 0.22))
         # self.rew_buf_list[:, 0] += self.stage_buf[:, 6]*(torch.exp(-torch.abs(height_minx - 0.33)*4)+torch.exp(-torch.abs(height_miny - 0.33)*4))*5.0
-        self.rew_buf_list[:, 0] +=  self.stage_buf[:, 6]*(-torch.abs(height_minx - 0.33))*20.0 + 10.0
+        self.rew_buf_list[:, 0] +=  self.stage_buf[:, 6]*(-torch.abs(h_min - 0.33))*20.0 + 10.0
 
         # body balance
         
@@ -311,7 +313,7 @@ class LeggedRobotRec(BaseTask):
         # self.rew_buf_list[:, 4] += self.stage_buf[:, 2]*(5.0 - torch.norm(self.dof_vel, dim=1)*0.2)
         # self.rew_buf_list[:, 4] += self.stage_buf[:, 3]*(5.0 - torch.norm(self.dof_vel, dim=1)*0.2)
         self.rew_buf_list[:, 4] = self.stage_buf[:, 4]*20.0
-        self.rew_buf_list[:, 4] += self.stage_buf[:, 5]*(25.0 - torch.norm(self.dof_vel, dim=1)*0.1)
+        self.rew_buf_list[:, 4] += self.stage_buf[:, 5]*(30.0 - torch.norm(self.dof_vel, dim=1)*0.1)
         self.rew_buf_list[:, 4] += self.stage_buf[:, 6]*(40.0 - torch.norm(self.dof_vel, dim=1)*0.1)
         # print(50.0 - torch.norm(self.dof_vel, dim=1)*0.01)
         # style
@@ -327,8 +329,8 @@ class LeggedRobotRec(BaseTask):
         self.rew_buf_list[:, 5] += self.stage_buf[:, 4]*(-torch.abs(self.dof_positions - self.clear_dof_positions).mean(dim=-1))
         # self.rew_buf_list[:, 5] += self.stage_buf[:, 4]*(-torch.abs(self.dof_positions[:,[0,2,5,6,7,9,11]] - self.default_dof_pos[:,[0,2,5,6,7,9,11]]).mean(dim=-1))
         # self.rew_buf_list[:, 5] += self.stage_buf[:, 4]*(15.0-torch.abs(self.dof_positions[:,[3,4]] - self.clear_dof_positions[:,[3,4]]).mean(dim=-1)*10.0)
-        self.rew_buf_list[:, 5] += self.stage_buf[:, 5]*(-torch.abs(self.dof_positions - self.clear_dof_positions).mean(dim=-1))*1.0
-        self.rew_buf_list[:, 5] += self.stage_buf[:, 5]*(-torch.abs(self.dof_positions[:,[2,5,8,11]] - self.clear_dof_positions[:,[2,5,8,11]]).mean(dim=-1))*5.0
+        # self.rew_buf_list[:, 5] += self.stage_buf[:, 5]*(-torch.abs(self.dof_positions - self.clear_dof_positions).mean(dim=-1))*1.0
+        self.rew_buf_list[:, 5] += self.stage_buf[:, 5]*(-torch.abs(self.dof_positions[:,[1,4,7,10]] - self.clear_dof_positions[:,[1,4,7,10]]).mean(dim=-1))*5.0
         self.rew_buf_list[:, 5] += self.stage_buf[:, 6]*(-torch.abs(self.dof_positions - self.default_dof_pos).mean(dim=-1))*4.0
         self.rew_buf_list[:, 5] += self.stage_buf[:, 6]*(1.0-torch.abs(self.dof_positions[:,[0,3,6,9]] - self.default_dof_pos[:,[0,3,6,9]]).mean(dim=-1))*8.0
         self.rew_buf_list[:, 5] += self.stage_buf[:, 6]*(3.0-torch.abs(self.dof_positions[:,[1,2,4,5]] - self.default_dof_pos[:,[1,2,4,5]]).mean(dim=-1))*2.0
@@ -349,7 +351,7 @@ class LeggedRobotRec(BaseTask):
         # ========================================================= #
         # ==================== calculate costs ==================== #
         # foot contact
-        foot_contact_threshold = -1.0
+        foot_contact_threshold = 0.0
         foot_contact_forces = self.contact_forces[:, self.foot_indices, :]
         # calf_contact_forces = self.contact_forces[:, self.calf_indices, :]
         # foot_contact = ((torch.norm(foot_contact_forces, dim=2) > 10.0)|(torch.norm(calf_contact_forces, dim=2) > 10.0)).type(torch.float)
@@ -359,8 +361,8 @@ class LeggedRobotRec(BaseTask):
         self.rew_buf_list[:, 4] += self.stage_buf[:, 2]*(foot_contact_threshold)
         self.rew_buf_list[:, 4] += self.stage_buf[:, 3]*(foot_contact_threshold)
         self.rew_buf_list[:, 4] += self.stage_buf[:, 4]*(foot_contact_threshold)
-        self.rew_buf_list[:, 4] += self.stage_buf[:, 5]*(foot_contact_threshold)
-        self.rew_buf_list[:, 4] += self.stage_buf[:, 6]*(-foot_contact)
+        self.rew_buf_list[:, 4] += self.stage_buf[:, 5]*(foot_contact)*5.0
+        self.rew_buf_list[:, 4] += self.stage_buf[:, 6]*(foot_contact)*5.0
 
         # body contact
         body_contact_threshold = 0.025
@@ -386,7 +388,7 @@ class LeggedRobotRec(BaseTask):
         # update stage
         # have to handle in the following order: N -> N-1 -> N-2 ... -> 1 -> 0.
         from5_to6 = torch.logical_and(
-            self.stage_buf[:, 5] == 1.0, torch.abs(self.dof_positions - self.clear_dof_positions).mean(dim=-1)<0.25).type(torch.float32)
+            self.stage_buf[:, 5] == 1.0, com_height>=0.2).type(torch.float32)
         self.stage_buf[:, 5] = (1.0 - from5_to6)*self.stage_buf[:, 5]
         self.stage_buf[:, 6] = from5_to6 + (1.0 - from5_to6)*self.stage_buf[:, 6]
         from4_to5 = torch.logical_and(
