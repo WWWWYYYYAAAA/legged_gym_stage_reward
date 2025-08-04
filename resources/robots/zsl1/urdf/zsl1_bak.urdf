@@ -44,48 +44,6 @@
       </geometry>
     </collision>
   </link>
-   <link
-    name="payload">
-    <inertial>
-      <origin
-        xyz="-0.1 0.0 0.08"
-        rpy="0 0 0" />
-      <mass
-        value="0.1" />
-      <inertia
-        ixx="0.0"
-        ixy="-0.0"
-        ixz="0.0"
-        iyy="0.0"
-        iyz="-0.0"
-        izz="0.0" />
-    </inertial>
-    <visual>
-      <origin
-        xyz="-0.1 0 0.08"
-        rpy="0 0 0" />
-      <geometry>
-        <box size="0.1 0.1 0.025"/> 
-      </geometry>
-      <material
-        name="">
-        <color
-          rgba="0.75294 0.75294 0.75294 1" />
-      </material>
-    </visual>
-    <collision>
-      <origin
-        xyz="0.1 0 0.08"
-        rpy="0 0 0" />
-      <geometry>
-        <box size="0.1 0.1 0.0.025"/>
-      </geometry>
-    </collision>
-  </link>
-  <joint name="pl_joint" type="fixed" dont_collapse="true">
-    <parent link="base"/>
-    <child link="payload"/>
-  </joint>
   <link
     name="FL_hip">
     <inertial>
@@ -998,4 +956,4 @@
     <axis
       xyz="0 0 0" />
   </joint>
-</robot>
+</robot> 
