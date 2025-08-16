@@ -163,12 +163,13 @@ class LeggedRobotBF2(BaseTask):
         self._post_physics_step_callback()
 
         # compute observations, rewards, resets, ...
-        # self.check_termination()
+        self.check_termination()
         self.compute_reward()
         env_ids = self.reset_buf.nonzero(as_tuple=False).flatten()
         self.reset_idx(env_ids)
         self.compute_observations() # in some cases a simulation step might be required to refresh some obs (for example body positions)
 
+        self.last_last_actions[:] = self.last_actions[:]
         self.last_actions[:] = self.actions[:]
         self.last_dof_vel[:] = self.dof_vel[:]
         self.last_root_vel[:] = self.root_states[:, 7:13]
@@ -179,7 +180,8 @@ class LeggedRobotBF2(BaseTask):
     def check_termination(self):
         """ Check if environments need to be reset
         """
-        self.reset_buf = torch.any(torch.norm(self.contact_forces[:, self.termination_contact_indices, :], dim=-1) > 1., dim=1)
+        self.reset_buf[:] = self.fail_buf[:]
+        # self.reset_buf = torch.any(torch.norm(self.contact_forces[:, self.termination_contact_indices, :], dim=-1) > 1., dim=1)
         self.time_out_buf = self.episode_length_buf > self.max_episode_length # no terminal reward for time-outs
         self.reset_buf |= self.time_out_buf
 
@@ -210,6 +212,7 @@ class LeggedRobotBF2(BaseTask):
 
         # reset buffers
         self.last_actions[env_ids] = 0.
+        self.last_last_actions[env_ids] = 0.
         self.last_dof_vel[env_ids] = 0.
         self.feet_air_time[env_ids] = 0.
         self.episode_length_buf[env_ids] = 0
@@ -266,34 +269,43 @@ class LeggedRobotBF2(BaseTask):
         
         # com_height = torch.mean(self.root_states[:, 2].unsqueeze(1) - self.measured_heights, dim=1)
         com_height = self.base_positions[:, 2]
-        self.rew_buf_list[:, 0] =  self.stage_buf[:, 0]*(-torch.abs(com_height - 0.35))
+        self.rew_buf_list[:, 0] =  self.stage_buf[:, 0]*(-torch.abs(com_height - 0.33))*5.0
         self.rew_buf_list[:, 0] += self.stage_buf[:, 1]*(-torch.abs(com_height - 0.2))
         self.rew_buf_list[:, 0] += self.stage_buf[:, 2]*(com_height <= 0.5)*(com_height)
         self.rew_buf_list[:, 0] += self.stage_buf[:, 3]*(com_height <= 0.5)*(com_height)
-        self.rew_buf_list[:, 0] += self.stage_buf[:, 4]*(-torch.abs(com_height - 0.35))
+        self.rew_buf_list[:, 0] += self.stage_buf[:, 4]*(-torch.abs(com_height - 0.33))
         # body balance
         body_z = quat_rotate_inverse(self.base_quaternions, self.world_z)
-        self.rew_buf_list[:, 1] =  self.stage_buf[:, 0]*(-torch.arccos(torch.clamp(body_z[:, 2], -1.0, 1.0)))
-        self.rew_buf_list[:, 1] += self.stage_buf[:, 1]*(-torch.arccos(torch.clamp(body_z[:, 2], -1.0, 1.0)))
+        self.rew_buf_list[:, 1] =  self.stage_buf[:, 0]*(-torch.norm(body_z[:, :2], dim=1))*5.0
+        self.rew_buf_list[:, 1] += self.stage_buf[:, 1]*(-torch.norm(body_z[:, :2], dim=1))*5.0
         self.rew_buf_list[:, 1] += self.stage_buf[:, 2]*(-torch.abs(torch.arccos(torch.clamp(body_z[:, 1], -1.0, 1.0)) - np.pi/2.0))
         self.rew_buf_list[:, 1] += self.stage_buf[:, 3]*(-torch.abs(torch.arccos(torch.clamp(body_z[:, 1], -1.0, 1.0)) - np.pi/2.0))
         self.rew_buf_list[:, 1] += self.stage_buf[:, 4]*(-torch.arccos(torch.clamp(body_z[:, 2], -1.0, 1.0)))
         # pitch vel
         base_lin_vels = quat_rotate_inverse(self.base_quaternions, self.base_lin_vels)
         base_ang_vels = quat_rotate_inverse(self.base_quaternions, self.base_ang_vels)
-        vel_penalty = torch.square(base_lin_vels[:, 0]) + torch.square(base_lin_vels[:, 1]) + torch.square(base_ang_vels[:, 2])
+        vel_penalty = torch.abs(base_lin_vels[:, 0]) + torch.abs(base_lin_vels[:, 1]) + torch.abs(base_ang_vels[:, 2])
         base_ang_vel_y = base_ang_vels[:, 1]
-        self.rew_buf_list[:, 2] =  self.stage_buf[:, 0]*(-vel_penalty)
-        self.rew_buf_list[:, 2] += self.stage_buf[:, 1]*(-vel_penalty)
-        self.rew_buf_list[:, 2] += self.stage_buf[:, 2]*(1.0 - self.is_one_turn_buf)*(-base_ang_vel_y)
-        self.rew_buf_list[:, 2] += self.stage_buf[:, 3]*(1.0 - self.is_one_turn_buf)*(-base_ang_vel_y)
-        self.rew_buf_list[:, 2] += self.stage_buf[:, 4]*(-vel_penalty)
+        self.rew_buf_list[:, 2] =  self.stage_buf[:, 0]*(-vel_penalty)*3.0
+        self.rew_buf_list[:, 2] += self.stage_buf[:, 1]*(-vel_penalty)*3.0
+        self.rew_buf_list[:, 2] += self.stage_buf[:, 2]*(1.0 - self.is_one_turn_buf)*(-base_ang_vel_y)*5.0
+        self.rew_buf_list[:, 2] += self.stage_buf[:, 3]*(1.0 - self.is_one_turn_buf)*(-base_ang_vel_y)*2.0
+        self.rew_buf_list[:, 2] += self.stage_buf[:, 4]*(-vel_penalty)*3.0
         # energy
-        self.rew_buf_list[:, 3] = -torch.square(self.dof_torques).mean(dim=-1)
+        # self.rew_buf_list[:, 3] = -torch.square(self.dof_torques).mean(dim=-1)
         # style
-        self.rew_buf_list[:, 4]  = -torch.square(self.dof_positions - self.default_dof_pos).mean(dim=-1)
-
-        self.rew_buf[:] = torch.sum(self.rew_buf_list, dim=1)
+        body_x = quat_rotate_inverse(self.base_quaternions, self.world_x)
+        self.rew_buf_list[:, 4]  = -torch.abs(self.dof_positions - self.default_dof_pos).mean(dim=-1)
+        self.rew_buf_list[:, 4]  += -torch.abs(self.dof_positions[:,[0,3,6,9]] - self.default_dof_pos[:,[0,3,6,9]]).mean(dim=-1)*10.0
+        self.rew_buf_list[:, 4]  += -self.stage_buf[:, 0]*torch.abs(self.dof_positions - self.default_dof_pos).mean(dim=-1)*5.0
+        self.rew_buf_list[:, 4]  += self.stage_buf[:, 4]*(7.5-torch.abs(self.dof_positions - self.default_dof_pos).mean(dim=-1)*7.5)
+        
+        self.rew_buf_list[:, 3]  =  self.stage_buf[:, 1]*1.0
+        self.rew_buf_list[:, 3]  +=  self.stage_buf[:, 2]*5.0
+        self.rew_buf_list[:, 3]  +=  self.stage_buf[:, 3]*10.0
+        self.rew_buf_list[:, 3]  +=  self.stage_buf[:, 4]*(17.0-torch.abs(body_x[:,1])*5.0)
+        # self.rew_buf[:] = torch.sum(self.rew_buf_list, dim=1)
+        
 
         # ========================================================= #
         # ==================== calculate costs ==================== #
@@ -302,11 +314,11 @@ class LeggedRobotBF2(BaseTask):
         foot_contact_forces = self.contact_forces[:, self.feet_indices, :]
         calf_contact_forces = self.contact_forces[:, self.calf_indices, :]
         foot_contact = ((torch.norm(foot_contact_forces, dim=2) > 10.0)|(torch.norm(calf_contact_forces, dim=2) > 10.0)).type(torch.float)
-        self.cost_buf[:, 0] =  self.stage_buf[:, 0]*(foot_contact_threshold)
-        self.cost_buf[:, 0] += self.stage_buf[:, 1]*(foot_contact_threshold)
-        self.cost_buf[:, 0] += self.stage_buf[:, 2]*(1.0 - (foot_contact[:, 2] + foot_contact[:, 3])/2.0)
-        self.cost_buf[:, 0] += self.stage_buf[:, 3]*(foot_contact_threshold)
-        self.cost_buf[:, 0] += self.stage_buf[:, 4]*(foot_contact_threshold)
+        self.rew_buf_list[:, 3] +=  self.stage_buf[:, 0]*(foot_contact.mean(dim=1))
+        self.rew_buf_list[:, 3] += self.stage_buf[:, 1]*(foot_contact.mean(dim=1))
+        self.rew_buf_list[:, 3] += self.stage_buf[:, 2]*(1.0 - (foot_contact[:, 2] + foot_contact[:, 3])/2.0)
+        self.rew_buf_list[:, 3] += self.stage_buf[:, 3]*(foot_contact.mean(dim=1))
+        self.rew_buf_list[:, 3] += self.stage_buf[:, 4]*(foot_contact.mean(dim=1))
         # body contact
         term_contact = torch.any(torch.norm(self.contact_forces[:, self.termination_contact_indices, :], dim=-1) > 1.0, dim=-1)
         undesired_contact = torch.any(torch.norm(self.contact_forces[:, self.penalised_contact_indices, :], dim=-1) > 1.0, dim=-1)
@@ -316,15 +328,15 @@ class LeggedRobotBF2(BaseTask):
         self.cost_buf[:, 1] += self.stage_buf[:, 3]*undesired_contact.type(torch.float)
         self.cost_buf[:, 1] += self.stage_buf[:, 4]*undesired_contact.type(torch.float)
        # joint pos
-        self.cost_buf[:, 2] = torch.mean((
-            (self.dof_positions < self.dof_pos_limits[:, 0])|(self.dof_positions > self.dof_pos_limits[:, 1])
-            ).to(torch.float), dim=-1)
-        # joint vel
-        self.cost_buf[:, 3] = torch.mean(
-            (torch.abs(self.dof_velocities) > self.dof_vel_limits).to(torch.float), dim=-1)
-        # joint torque
-        self.cost_buf[:, 4] = torch.mean(
-            (torch.abs(self.dof_torques) > self.torque_limits).to(torch.float), dim=-1)
+        # self.cost_buf[:, 2] = torch.mean((
+        #     (self.dof_positions < self.dof_pos_limits[:, 0])|(self.dof_positions > self.dof_pos_limits[:, 1])
+        #     ).to(torch.float), dim=-1)
+        # # joint vel
+        # self.cost_buf[:, 3] = torch.mean(
+        #     (torch.abs(self.dof_velocities) > self.dof_vel_limits).to(torch.float), dim=-1)
+        # # joint torque
+        # self.cost_buf[:, 4] = torch.mean(
+        #     (torch.abs(self.dof_torques) > self.torque_limits).to(torch.float), dim=-1)
         # ========================================================= #
 
         # update stage
@@ -354,8 +366,8 @@ class LeggedRobotBF2(BaseTask):
         from0_to1 = torch.logical_and(
             self.stage_buf[:, 0] == 1.0, torch.logical_and(
                 self.progress_buf*self.control_dt > self.start_time_buf, torch.logical_and(
-                    com_height >= 0.3, 
-                    self.is_half_turn_buf == 0
+                    com_height >= 0.3, torch.logical_and(
+                    self.is_half_turn_buf == 0, torch.abs(self.dof_positions - self.default_dof_pos).mean(dim=-1)<0.2)
                 )
             )
         ).type(torch.float32)
@@ -378,13 +390,13 @@ class LeggedRobotBF2(BaseTask):
         # check termination
         body_contacts = torch.any(torch.norm(self.contact_forces[:, self.terminate_touch_indices, :], dim=-1) > 1.0, dim=-1)
         landing_wo_turns = torch.logical_and(self.stage_buf[:, 3] == 1.0, torch.logical_and(foot_contact.mean(dim=-1) > 0.0, 1 - self.is_half_turn_buf))
-        self.fail_buf[:] = torch.logical_or(body_contacts, landing_wo_turns).type(torch.long)
+        self.fail_buf[:] = torch.logical_or(torch.logical_and(body_contacts, self.stage_buf[:, 0]==0), landing_wo_turns).type(torch.long)
 
         # calculate reset buffer
-        self.reset_buf[:] = torch.where(
-            self.progress_buf >= self.max_episode_length, 
-            torch.ones_like(self.reset_buf), self.fail_buf
-        )
+        # self.reset_buf[:] = torch.where(
+        #     self.progress_buf >= self.max_episode_length, 
+        #     torch.ones_like(self.reset_buf), self.fail_buf
+        # )
 
         for i in range(len(self.reward_functions)):
             name = self.reward_names[i]
@@ -763,6 +775,7 @@ class LeggedRobotBF2(BaseTask):
         self.d_gains = torch.zeros(self.num_actions, dtype=torch.float, device=self.device, requires_grad=False)
         self.actions = torch.zeros(self.num_envs, self.num_actions, dtype=torch.float, device=self.device, requires_grad=False)
         self.last_actions = torch.zeros(self.num_envs, self.num_actions, dtype=torch.float, device=self.device, requires_grad=False)
+        self.last_last_actions = torch.zeros(self.num_envs, self.num_actions, dtype=torch.float, device=self.device, requires_grad=False)
         self.last_dof_vel = torch.zeros_like(self.dof_vel)
         self.last_root_vel = torch.zeros_like(self.root_states[:, 7:13])
         self.commands = torch.zeros(self.num_envs, self.cfg.commands.num_commands, dtype=torch.float, device=self.device, requires_grad=False) # x vel, y vel, yaw vel, heading
@@ -794,6 +807,24 @@ class LeggedRobotBF2(BaseTask):
                 if self.cfg.control.control_type in ["P", "V"]:
                     print(f"PD gain of joint {name} were not defined, setting them to zero")
         self.default_dof_pos = self.default_dof_pos.unsqueeze(0)
+        
+        self.crawled_dof_positions = torch.zeros(self.num_dof, dtype=torch.float, device=self.device, requires_grad=False)
+        for i in range(self.num_dofs):
+            name = self.dof_names[i]
+            angle = self.cfg.init_state.crawled_joint_angles[name]
+            self.crawled_dof_positions[i] = angle
+            found = False
+            for dof_name in self.cfg.control.stiffness.keys():
+                if dof_name in name:
+                    self.p_gains[i] = self.cfg.control.stiffness[dof_name]
+                    self.d_gains[i] = self.cfg.control.damping[dof_name]
+                    found = True
+            if not found:
+                self.p_gains[i] = 0.
+                self.d_gains[i] = 0.
+                if self.cfg.control.control_type in ["P", "V"]:
+                    print(f"PD gain of joint {name} were not defined, setting them to zero")
+        self.crawled_dof_positions = self.crawled_dof_positions.unsqueeze(0)
 
         # self.crawled_dof_pos = torch.zeros(self.num_dof, dtype=torch.float, device=self.device, requires_grad=False)
         # for i in range(self.num_dofs):
@@ -1216,3 +1247,10 @@ class LeggedRobotBF2(BaseTask):
     def _reward_feet_contact_forces(self):
         # penalize high contact forces
         return torch.sum((torch.norm(self.contact_forces[:, self.feet_indices, :], dim=-1) -  self.cfg.rewards.max_contact_force).clip(min=0.), dim=1)
+    
+    def _reward_backflip(self):
+        return torch.sum(self.rew_buf_list, dim=1)
+    
+    def _reward_smoothness(self):
+        # second order smoothness
+        return torch.sum(torch.square(self.actions - self.last_actions - self.last_actions + self.last_last_actions), dim=1)

@@ -48,7 +48,7 @@ from legged_gym.utils.math import quat_apply_yaw, wrap_to_pi, torch_rand_sqrt_fl
 from legged_gym.utils.helpers import class_to_dict
 from .legged_robot_config import LeggedRobotCfg
 
-class LeggedRobotRec(BaseTask):
+class LeggedRobotBalance(BaseTask):
     def __init__(self, cfg: LeggedRobotCfg, sim_params, physics_engine, sim_device, headless):
         """ Parses the provided config file,
             calls create_sim() (which creates, simulation, terrain and environments),
@@ -78,9 +78,9 @@ class LeggedRobotRec(BaseTask):
 
         # stage init buffer
         self.control_dt = self.dt 
-        self.num_rewards = 6
+        self.num_rewards = 7
         self.num_costs = 5
-        self.num_stages = 7
+        self.num_stages = 3
         self.num_one_step_obs = self.cfg.env.num_one_step_observations
         self.history_length = int(self.num_obs / self.num_one_step_obs)
         # self.rew_buf = torch.zeros((self.num_envs, self.num_rewards),
@@ -94,6 +94,7 @@ class LeggedRobotRec(BaseTask):
         self.is_half_turn_buf = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
         self.is_one_turn_buf = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
         self.start_time_buf = torch.zeros(self.num_envs, dtype=torch.float32, device=self.device)
+        self.recovery_time_buf = torch.zeros(self.num_envs, dtype=torch.float32, device=self.device)
         self.lie_time_buf = torch.zeros(self.num_envs, dtype=torch.float32, device=self.device)
         
         self.rew_buf_list = torch.zeros((self.num_envs, self.num_rewards),
@@ -231,7 +232,8 @@ class LeggedRobotRec(BaseTask):
         self.stage_buf[env_ids, 0] = 1.0
         self.is_half_turn_buf[env_ids] = 0
         self.is_one_turn_buf[env_ids] = 0
-        self.start_time_buf[env_ids] = torch_rand_float(0.0, 5.0, (len(env_ids), 1), device=self.device).squeeze()
+        self.start_time_buf[env_ids] = torch_rand_float(0.1, 4.0, (len(env_ids), 1), device=self.device).squeeze()
+        self.recovery_time_buf[env_ids] = torch_rand_float(10.0, 14.0, (len(env_ids), 1), device=self.device).squeeze()+self.start_time_buf[env_ids]
         # self.reset_observations(env_ids)
         self.obs_buf[env_ids,:] = 0.0
         self.lie_time_buf[env_ids] = 0.0
@@ -244,205 +246,104 @@ class LeggedRobotRec(BaseTask):
         """
         self.rew_buf[:] = 0.
         self.rew_buf_list[:,:]=0.
-        body_z = quat_rotate_inverse(self.base_quaternions, self.world_z)
         # stage reward
         #########
         com_height = self.base_positions[:, 2]
-        # print(com_height)
-        self.rew_buf_list[:, 0] =  self.stage_buf[:, 0]*(-torch.clamp(com_height - 0.2, min=0.0))
-        self.rew_buf_list[:, 0] += self.stage_buf[:, 1]*(-torch.abs(com_height - 0.18))*20.0
-        self.rew_buf_list[:, 0] += self.stage_buf[:, 2]*(-torch.clamp(com_height - 0.25, min=0.0))
-        self.rew_buf_list[:, 0] += self.stage_buf[:, 3]*(-torch.clamp(com_height - 0.25, min=0.0))
-        # height_minx = com_height -  torch.abs(torch.clamp(-body_z[:, 0], -1.0, 1.0))*0.2
-        # height_miny = com_height -  torch.abs(torch.clamp(-body_z[:, 1], -1.0, 1.0))*0.1
-        # self.rew_buf_list[:, 0] += self.stage_buf[:, 4]*(torch.exp(-torch.abs(height_minx - 0.33)*10)+torch.exp(-torch.abs(height_miny - 0.33)*10))
-        height_minx = com_height -  torch.abs(torch.clamp(body_z[:, 0], -1.0, 1.0))*0.2
-        height_maxx = com_height +  torch.abs(torch.clamp(body_z[:, 0], -1.0, 1.0))*0.2
-        height_miny = com_height -  torch.abs(torch.clamp(body_z[:, 1], -1.0, 1.0))*0.1
-        self.rew_buf_list[:, 0] +=  self.stage_buf[:, 4]*(-torch.clamp(com_height - 0.25, min=0.0))
-        self.rew_buf_list[:, 0] +=  self.stage_buf[:, 5]*(-torch.clamp(com_height - 0.25, min=0.0))
-        h_min = torch.min(height_minx, height_miny)
-        self.rew_buf_list[:, 0] +=  self.stage_buf[:, 5]*(-torch.abs(h_min - 0.22))
-        # self.rew_buf_list[:, 0] += self.stage_buf[:, 6]*(torch.exp(-torch.abs(height_minx - 0.33)*4)+torch.exp(-torch.abs(height_miny - 0.33)*4))*5.0
-        self.rew_buf_list[:, 0] +=  self.stage_buf[:, 6]*(-torch.abs(h_min - 0.33))*20.0 + 10.0
-
+        self.rew_buf_list[:, 0] =  self.stage_buf[:, 0]*(-torch.abs(com_height - 0.33))*10
+        self.rew_buf_list[:, 0] += self.stage_buf[:, 1]*(-torch.abs(com_height - 0.33))*10
+        self.rew_buf_list[:, 0] += self.stage_buf[:, 2]*(-torch.abs(com_height - 0.33))*10
+       
         # body balance
-        
-        self.rew_buf_list[:, 1] =  self.stage_buf[:, 0]*(-torch.abs(torch.arccos(torch.clamp(body_z[:, 0], -1.0, 1.0)) - np.pi/2.0))
-        self.rew_buf_list[:, 1] += self.stage_buf[:, 1]*(-torch.abs(torch.arccos(torch.clamp(body_z[:, 0], -1.0, 1.0)) - np.pi/2.0))
-        self.rew_buf_list[:, 1] += self.stage_buf[:, 2]*(-torch.abs(torch.arccos(torch.clamp(body_z[:, 0], -1.0, 1.0)) - np.pi/2.0))
-        self.rew_buf_list[:, 1] += self.stage_buf[:, 3]*(-torch.abs(torch.arccos(torch.clamp(body_z[:, 0], -1.0, 1.0)) - np.pi/2.0))
-        self.rew_buf_list[:, 1] += self.stage_buf[:, 4]*(-torch.arccos(torch.clamp(body_z[:, 2], -1.0, 1.0)))*5.0
-        self.rew_buf_list[:, 1] += self.stage_buf[:, 5]*(-torch.arccos(torch.clamp(body_z[:, 2], -1.0, 1.0)))*5.0
-        self.rew_buf_list[:, 1] += self.stage_buf[:, 6]*(-torch.arccos(torch.clamp(body_z[:, 2], -1.0, 1.0)))*5.0
+        body_z = quat_rotate_inverse(self.base_quaternions, self.world_z)
+        balance_rew = torch.sum(torch.abs(body_z[:, :2]), dim=1)
+        self.rew_buf_list[:, 1] =  self.stage_buf[:, 0]*(-balance_rew)*10
+        self.rew_buf_list[:, 1] += self.stage_buf[:, 1]*(-balance_rew)*10
+        self.rew_buf_list[:, 1] += self.stage_buf[:, 2]*(-balance_rew)*10
         # rotation angle
         self.rew_buf_list[:, 2] =  self.stage_buf[:, 0]*(0.0)
-        self.rew_buf_list[:, 2] += self.stage_buf[:, 1]*(0.0)
-        roll_angles = torch.arccos(torch.clamp(-body_z[:, 2], -1.0, 1.0)) # target: (0, 0, -1)
-        masks = torch.logical_or(body_z[:, 1] > 0, torch.abs(roll_angles) < np.pi/6.0).type(torch.float)
-        self.rew_buf_list[:, 2] += self.stage_buf[:, 2]*(-masks*roll_angles + (1.0 - masks)*(roll_angles - 2.0*np.pi))
-        roll_angles = torch.arccos(torch.clamp(body_z[:, 2], -1.0, 1.0)) # target: (0, 0, 1)
-        masks = torch.logical_or(body_z[:, 1] <= 0, torch.abs(roll_angles) < np.pi/6.0).type(torch.float)
-        self.rew_buf_list[:, 2] += self.stage_buf[:, 3]*(-masks*roll_angles + (1.0 - masks)*(roll_angles - 2.0*np.pi))
-        self.rew_buf_list[:, 2] += self.stage_buf[:, 4]*(0.0)
-        self.rew_buf_list[:, 2] += self.stage_buf[:, 5]*(0.0)
-        self.rew_buf_list[:, 2] += self.stage_buf[:, 6]*(0.0)
+        self.rew_buf_list[:, 2] += self.stage_buf[:, 1]*(20.0)
+        self.rew_buf_list[:, 2] += self.stage_buf[:, 2]*(40.0)
         # base vel
-        x_dirs = quat_rotate(self.base_quaternions, self.world_x)
-        x_dirs[:, 2] = 0.0
-        x_dirs /= torch.norm(x_dirs, dim=-1, keepdim=True)
-        base_ang_vel_x = torch.sum(self.base_ang_vels*x_dirs, dim=-1)
-        base_lin_vels = quat_rotate_inverse(self.base_quaternions, self.base_lin_vels)
-        base_ang_vels = quat_rotate_inverse(self.base_quaternions, self.base_ang_vels)
-        vel_penalty = torch.abs(base_lin_vels[:, 0]) + torch.abs(base_lin_vels[:, 1]) + torch.abs(base_ang_vels[:, 2])
-        vel_x_pen = torch.abs(base_lin_vels[:, 0]) + torch.abs(base_ang_vels[:, 1]) + torch.abs(base_ang_vels[:, 2])
-        ang_pen = torch.norm(base_ang_vels[:, :], dim=1)
+        vel_penalty = torch.sum(torch.abs(self.base_lin_vel[:, :]), dim=1) + torch.sum(torch.abs(self.base_ang_vel[:, :]), dim=1)
         self.rew_buf_list[:, 3] =  self.stage_buf[:, 0]*(-vel_penalty)
         self.rew_buf_list[:, 3] += self.stage_buf[:, 1]*(-vel_penalty)
-        self.rew_buf_list[:, 3] += self.stage_buf[:, 2]*((base_ang_vel_x < 3.0*np.pi).type(torch.float)*base_ang_vel_x)*5.0
-        self.rew_buf_list[:, 3] += self.stage_buf[:, 2]*(-vel_x_pen)
-        self.rew_buf_list[:, 3] += self.stage_buf[:, 3]*((base_ang_vel_x < 2.5*np.pi).type(torch.float)*base_ang_vel_x)*5.0
-        self.rew_buf_list[:, 3] += self.stage_buf[:, 4]*(-vel_penalty)
-        self.rew_buf_list[:, 3] += self.stage_buf[:, 4]*(-ang_pen)*2.0
-        self.rew_buf_list[:, 3] += self.stage_buf[:, 5]*(-vel_penalty)
-        self.rew_buf_list[:, 3] += self.stage_buf[:, 5]*(-ang_pen)*2.0
-        self.rew_buf_list[:, 3] += self.stage_buf[:, 6]*(-vel_penalty)
-        self.rew_buf_list[:, 3] += self.stage_buf[:, 6]*(-ang_pen)*2.0
+        self.rew_buf_list[:, 3] += self.stage_buf[:, 2]*(-vel_penalty)
         # energy
-        # self.rew_buf_list[:, 4] += self.stage_buf[:, 1]*( - torch.norm(self.dof_vel, dim=1)*0.2)
-        # self.rew_buf_list[:, 4] += self.stage_buf[:, 2]*(5.0 - torch.norm(self.dof_vel, dim=1)*0.2)
-        # self.rew_buf_list[:, 4] += self.stage_buf[:, 3]*(5.0 - torch.norm(self.dof_vel, dim=1)*0.2)
-        self.rew_buf_list[:, 4] = self.stage_buf[:, 4]*20.0
-        self.rew_buf_list[:, 4] += self.stage_buf[:, 5]*(40.0 - torch.norm(self.dof_vel, dim=1)*0.1)
-        self.rew_buf_list[:, 4] += self.stage_buf[:, 6]*(50.0 - torch.norm(self.dof_vel, dim=1)*0.1)
-        self.rew_buf_list[:, 4] += 10-self.stage_buf[:, 6]*torch.sum(1.*(torch.norm(self.contact_forces[:, self.penalised_contact_indices, :], dim=-1) > 0.1), dim=1)*5
-        # print(50.0 - torch.norm(self.dof_vel, dim=1)*0.01)
+        # self.rew_buf_list[:, 4] = -torch.square(self.dof_torques).mean(dim=-1)
         # style
-        self.rew_buf_list[:, 5] =  self.stage_buf[:, 0]*(-torch.abs(self.dof_positions - self.default_dof_pos).mean(dim=-1))*20.0
-        # print(self.dof_positions - self.crawled_dof_positions)
-        self.rew_buf_list[:, 5] += self.stage_buf[:, 1]*(-torch.abs(self.dof_positions - self.crawled_dof_positions).mean(dim=-1))*10
-        style_penalty =  torch.abs(self.dof_positions[:, 3:6] - self.crawled_dof_positions[:, 3:6]).mean(dim=-1)
-        style_penalty += torch.abs(self.dof_positions[:, 9:12] - self.crawled_dof_positions[:, 9:12]).mean(dim=-1)
-        self.rew_buf_list[:, 5] += self.stage_buf[:, 2]*(-style_penalty)
-        style_penalty =  torch.abs(self.dof_positions[:, :3] - self.crawled_dof_positions[:, :3]).mean(dim=-1)
-        style_penalty += torch.abs(self.dof_positions[:, 6:9] - self.crawled_dof_positions[:, 6:9]).mean(dim=-1)
-        self.rew_buf_list[:, 5] += self.stage_buf[:, 3]*(-style_penalty)
-        self.rew_buf_list[:, 5] += self.stage_buf[:, 4]*(-torch.abs(self.dof_positions - self.clear_dof_positions).mean(dim=-1))
-        # self.rew_buf_list[:, 5] += self.stage_buf[:, 4]*(-torch.abs(self.dof_positions[:,[0,2,5,6,7,9,11]] - self.default_dof_pos[:,[0,2,5,6,7,9,11]]).mean(dim=-1))
-        # self.rew_buf_list[:, 5] += self.stage_buf[:, 4]*(15.0-torch.abs(self.dof_positions[:,[3,4]] - self.clear_dof_positions[:,[3,4]]).mean(dim=-1)*10.0)
-        # self.rew_buf_list[:, 5] += self.stage_buf[:, 5]*(-torch.abs(self.dof_positions - self.clear_dof_positions).mean(dim=-1))*1.0
-        self.rew_buf_list[:, 5] += self.stage_buf[:, 5]*(-torch.abs(self.dof_positions[:,[1,4,7,10]] - self.clear_dof_positions[:,[1,4,7,10]]).mean(dim=-1))*5.0
-        self.rew_buf_list[:, 5] += self.stage_buf[:, 6]*(-torch.abs(self.dof_positions - self.default_dof_pos).mean(dim=-1))*4.0
-        self.rew_buf_list[:, 5] += self.stage_buf[:, 6]*(1.0-torch.abs(self.dof_positions[:,[0,3,6,9]] - self.default_dof_pos[:,[0,3,6,9]]).mean(dim=-1))*8.0
-        self.rew_buf_list[:, 5] += self.stage_buf[:, 6]*(3.0-torch.abs(self.dof_positions[:,[1,2,4,5]] - self.default_dof_pos[:,[1,2,4,5]]).mean(dim=-1))*2.0
+        self.rew_buf_list[:, 5] =  self.stage_buf[:, 0]*(-torch.abs(self.dof_positions - self.default_dof_pos).mean(dim=-1))*10.0
+        self.rew_buf_list[:, 5] += self.stage_buf[:, 1]*(-torch.abs(self.dof_positions - self.balance_dof_positions).mean(dim=-1))*1.0
+        self.rew_buf_list[:, 5] =  self.stage_buf[:, 2]*(-torch.abs(self.dof_positions - self.default_dof_pos).mean(dim=-1))*10.0
         # velocity
         # desir_move = torch.zeros((self.num_envs, 3), device=self.device, dtype=torch.float)
         # lin_vel_error = torch.sum(torch.square(desir_move - self.base_lin_vel[:, :3]), dim=1)
-        # self.rew_buf_list[:, 6] =  self.stage_buf[:, 0]*torch.exp(-lin_vel_error/self.cfg.rewards.tracking_sigma)*5.0
+        # self.rew_buf_list[:, 6] =  self.stage_buf[:, 0]*torch.exp(-lin_vel_error/self.cfg.rewards.tracking_sigma)*10.0
         # # self.rew_buf_list[:, 6] +=  self.stage_buf[:, 1]*torch.exp(-lin_vel_error/self.cfg.rewards.tracking_sigma)*5.0
         # desir_move = torch.zeros(self.num_envs, device=self.device, dtype=torch.float)
         # ang_vel_error = torch.square(desir_move - self.base_ang_vel[:, 2])
         # self.rew_buf_list[:, 6] =  self.stage_buf[:, 0]*torch.exp(-ang_vel_error/self.cfg.rewards.tracking_sigma)*5.0
         # self.rew_buf_list[:, 6] +=  self.stage_buf[:, 1]*torch.exp(-ang_vel_error/self.cfg.rewards.tracking_sigma)*5.0
-        # print(torch.sum(self.rew_buf_list, dim=1))
+        
         ####### sum reward
         # self.rew_buf[:] = torch.sum(self.rew_buf_list, dim=1)
-        
         #######
         # ========================================================= #
         # ==================== calculate costs ==================== #
+        #foot air
+        foot_height = (self.rigid_body_states[:, self.foot_indices[[2,3]],2]).squeeze()
+        foot_air = torch.sum((foot_height>=0.08).type(torch.float))
+        self.rew_buf_list[:, 4] += self.stage_buf[:, 1]*(foot_air)
         # foot contact
-        foot_contact_threshold = 0.0
         foot_contact_forces = self.contact_forces[:, self.foot_indices, :]
         # calf_contact_forces = self.contact_forces[:, self.calf_indices, :]
-        # foot_contact = ((torch.norm(foot_contact_forces, dim=2) > 10.0)|(torch.norm(calf_contact_forces, dim=2) > 10.0)).type(torch.float)
-        foot_contact = (torch.norm(foot_contact_forces, dim=2) > 10.0).type(torch.float).mean(dim=-1)
-        self.rew_buf_list[:, 4] +=  self.stage_buf[:, 0]*(foot_contact_threshold)
-        self.rew_buf_list[:, 4] += self.stage_buf[:, 1]*(foot_contact_threshold)
-        self.rew_buf_list[:, 4] += self.stage_buf[:, 2]*(foot_contact_threshold)
-        self.rew_buf_list[:, 4] += self.stage_buf[:, 3]*(foot_contact_threshold)
-        self.rew_buf_list[:, 4] += self.stage_buf[:, 4]*(foot_contact_threshold)
-        self.rew_buf_list[:, 4] += self.stage_buf[:, 5]*(foot_contact)*5.0
-        self.rew_buf_list[:, 4] += self.stage_buf[:, 6]*(foot_contact)*5.0
-
-        # body contact
-        body_contact_threshold = 0.025
-        term_contact = torch.any(torch.norm(self.contact_forces[:, self.terminate_touch_indices, :], dim=-1) > 1.0, dim=-1)
-        undesired_contact = torch.any(torch.norm(self.contact_forces[:, self.undesired_touch_indices, :], dim=-1) > 1.0, dim=-1)
-        self.cost_buf[:, 1] =  self.stage_buf[:, 0]*torch.logical_or(term_contact, undesired_contact).type(torch.float)
-        self.cost_buf[:, 1] += self.stage_buf[:, 1]*(body_contact_threshold)
-        self.cost_buf[:, 1] += self.stage_buf[:, 2]*(body_contact_threshold)
-        self.cost_buf[:, 1] += self.stage_buf[:, 3]*(body_contact_threshold)
-        self.cost_buf[:, 1] += self.stage_buf[:, 4]*(body_contact_threshold)
-        # joint pos
-        self.cost_buf[:, 2] = torch.mean((
-            (self.dof_positions < self.dof_pos_limits[:,0])|(self.dof_positions > self.dof_pos_limits[:,1])
-            ).to(torch.float), dim=-1)
-        # joint vel
-        self.cost_buf[:, 3] = torch.mean(
-            (torch.abs(self.dof_velocities) > self.dof_vel_limits).to(torch.float), dim=-1)
-        # joint torque
-        self.cost_buf[:, 4] = torch.mean(
-            (torch.abs(self.dof_torques) > self.torque_limits).to(torch.float), dim=-1)
+        foot_contact = (torch.norm(foot_contact_forces, dim=2) > 10.0).type(torch.float) #|(torch.norm(calf_contact_forces, dim=2) > 10.0)).type(torch.float)
+        self.rew_buf_list[:, 4] =  self.stage_buf[:, 0]*(foot_contact.mean(dim=-1)>=0.75).type(torch.float)*4.0
+        self.rew_buf_list[:, 4] += self.stage_buf[:, 1]*(foot_contact.mean(dim=-1)==0.5).type(torch.float)*4.0
+        self.rew_buf_list[:, 4] += self.stage_buf[:, 2]*(foot_contact.mean(dim=-1)>=0.75).type(torch.float)*4.0
+        # self.cost_buf[:, 0] += self.stage_buf[:, 3]*(foot_contact_threshold)
+        # self.cost_buf[:, 0] += self.stage_buf[:, 4]*(foot_contact_threshold)
+        # # body contact
+        # body_contact_threshold = 0.025
+        # term_contact = torch.any(torch.norm(self.contact_forces[:, self.terminate_touch_indices, :], dim=-1) > 1.0, dim=-1)
+        # undesired_contact = torch.any(torch.norm(self.contact_forces[:, self.undesired_touch_indices, :], dim=-1) > 1.0, dim=-1)
+        # self.cost_buf[:, 1] =  self.stage_buf[:, 0]*torch.logical_or(term_contact, undesired_contact).type(torch.float)
+        # self.cost_buf[:, 1] += self.stage_buf[:, 1]*(body_contact_threshold)
+        # self.cost_buf[:, 1] += self.stage_buf[:, 2]*(body_contact_threshold)
+        # self.cost_buf[:, 1] += self.stage_buf[:, 3]*(body_contact_threshold)
+        # self.cost_buf[:, 1] += self.stage_buf[:, 4]*(body_contact_threshold)
+        # # joint pos
+        # self.cost_buf[:, 2] = torch.mean((
+        #     (self.dof_positions < self.dof_pos_limits[:,0])|(self.dof_positions > self.dof_pos_limits[:,1])
+        #     ).to(torch.float), dim=-1)
+        # # joint vel
+        # self.cost_buf[:, 3] = torch.mean(
+        #     (torch.abs(self.dof_velocities) > self.dof_vel_limits).to(torch.float), dim=-1)
+        # # joint torque
+        # self.cost_buf[:, 4] = torch.mean(
+        #     (torch.abs(self.dof_torques) > self.torque_limits).to(torch.float), dim=-1)
         # ========================================================= #
 
         # update stage
         # have to handle in the following order: N -> N-1 -> N-2 ... -> 1 -> 0.
-        from5_to6 = torch.logical_and(
-            self.stage_buf[:, 5] == 1.0, torch.logical_and(com_height>=0.2, torch.mean((self.dof_positions[:,[1,4,7,10]]<2.0).type(torch.float32), dim=-1)>=0.75)).type(torch.float32)
-        self.stage_buf[:, 5] = (1.0 - from5_to6)*self.stage_buf[:, 5]
-        self.stage_buf[:, 6] = from5_to6 + (1.0 - from5_to6)*self.stage_buf[:, 6]
-        from4_to5 = torch.logical_and(
-            self.stage_buf[:, 4] == 1.0, body_z[:,2]>0.9).type(torch.float32)
-        self.stage_buf[:, 4] = (1.0 - from4_to5)*self.stage_buf[:, 4]
-        self.stage_buf[:, 5] = from4_to5 + (1.0 - from4_to5)*self.stage_buf[:, 5]
-        from3_to4 = torch.logical_and(
-            self.stage_buf[:, 3] == 1.0, self.is_one_turn_buf).type(torch.float32)
-        self.stage_buf[:, 3] = (1.0 - from3_to4)*self.stage_buf[:, 3]
-        self.stage_buf[:, 4] = from3_to4 + (1.0 - from3_to4)*self.stage_buf[:, 4]
-        from2_to3 = torch.logical_and(
-            self.stage_buf[:, 2] == 1.0, self.is_half_turn_buf).type(torch.float32)
-        self.stage_buf[:, 2] = (1.0 - from2_to3)*self.stage_buf[:, 2]
-        self.stage_buf[:, 3] = from2_to3 + (1.0 - from2_to3)*self.stage_buf[:, 3]
-        # self.lie_time_buf[:] += self.stage_buf[:, 3]*self.control_dt
         from1_to2 = torch.logical_and(
-            self.stage_buf[:, 1] == 1.0, com_height >= 0.15).type(torch.float32)
-        # print("######", com_height)
+            self.stage_buf[:, 1] == 1.0, self.progress_buf*self.control_dt > self.recovery_time_buf).type(torch.float32)
         self.stage_buf[:, 1] = (1.0 - from1_to2)*self.stage_buf[:, 1]
         self.stage_buf[:, 2] = from1_to2 + (1.0 - from1_to2)*self.stage_buf[:, 2]
         from0_to1 = torch.logical_and(
             self.stage_buf[:, 0] == 1.0, torch.logical_and(
-                self.progress_buf*self.control_dt > self.start_time_buf, torch.logical_and(
-                    com_height <= 0.15, 
-                    self.is_half_turn_buf == 1 # (torch.abs(self.dof_positions - self.default_dof_pos).mean(dim=-1)<0.2)
-                )
+                self.progress_buf*self.control_dt > self.start_time_buf, 
+                    com_height >= 0.3
             )
         ).type(torch.float32)
         self.stage_buf[:, 0] = (1.0 - from0_to1)*self.stage_buf[:, 0]
         self.stage_buf[:, 1] = from0_to1 + (1.0 - from0_to1)*self.stage_buf[:, 1]
 
-        # check the robot tumbling
-        self.is_half_turn_buf[:] = torch.logical_or(
-            self.is_half_turn_buf, torch.logical_and(
-                body_z[:, 1] < 0, body_z[:, 2] < 0)).type(torch.long)
-        self.is_one_turn_buf[:] = torch.logical_or(
-            self.is_one_turn_buf, torch.logical_and(
-                self.is_half_turn_buf, torch.logical_and(
-                    torch.abs(body_z[:, 1]) <= 0.3, body_z[:, 2] >= 0))).type(torch.long)
-        # print(torch.mean(self.is_one_turn_buf[:].type(torch.float)))
+
         # check termination
-        body_contacts = torch.logical_and(
-            self.stage_buf[:, 4] == 1.0, 
-            torch.any(torch.norm(self.contact_forces[:, self.terminate_touch_indices, :], dim=-1) > 1.0, dim=-1))
-        body_balances = torch.logical_and(self.stage_buf[:, 4] == 1.0, body_z[:, 2] < 0.0)
-        lost_w = torch.logical_and(
-            self.stage_buf[:, 3] == 1.0,
-             torch.logical_and(
-                torch.abs(base_ang_vels[:, 0])<0.05,
-                self.lie_time_buf[:]>5.0)
-        )
-        # self.fail_buf[:] = torch.logical_or(body_contacts, torch.logical_or(body_balances, lost_w)).type(torch.long)
-        self.fail_buf[:] = torch.logical_or(body_balances, lost_w).type(torch.long)
+        body_contacts = torch.any(torch.norm(self.contact_forces[:, self.terminate_touch_indices, :], dim=-1) > 1.0, dim=-1)
+        body_balances = body_z[:, 2] < 0.5
+      
+        self.fail_buf[:] = torch.logical_or(body_contacts, body_balances).type(torch.long)
 
         # calculate reset buffer
         # self.reset_buf[:] = torch.logical_or(
@@ -461,12 +362,11 @@ class LeggedRobotRec(BaseTask):
             rew = self._reward_termination() * self.reward_scales["termination"]
             self.rew_buf += rew
             self.episode_sums["termination"] += rew
-        # print(self.rew_buf[0])
     
     def compute_observations(self):
         """ Computes observations
         """
-        masks2 = (self.progress_buf*self.control_dt >= self.start_time_buf + 0.5).type(torch.float32)*self.stage_buf[:, 6]
+        masks2 = (self.progress_buf*self.control_dt >= self.recovery_time_buf).type(torch.float32)
         masks1 = (1.0 - masks2)*(self.progress_buf*self.control_dt >= self.start_time_buf).type(torch.float32)
         masks0 = (self.progress_buf*self.control_dt < self.start_time_buf).type(torch.float32)
         self.stage_commands[:, 0] = masks0
@@ -497,12 +397,12 @@ class LeggedRobotRec(BaseTask):
         """
         # self.obs_buf[env_ids,:] = 0.0
         for _ in range(self.history_length):
-            # masks2 = (self.progress_buf*self.control_dt >= self.start_time_buf + 0.5).type(torch.float32)*self.stage_buf[:, 4]
-            # masks1 = (1.0 - masks2)*(self.progress_buf*self.control_dt >= self.start_time_buf).type(torch.float32)
-            # masks0 = (self.progress_buf*self.control_dt < self.start_time_buf).type(torch.float32)
-            self.stage_commands[:, 0] = 1.0
-            self.stage_commands[:, 1] = 0
-            self.stage_commands[:, 2] = 0
+            masks2 = (self.progress_buf*self.control_dt >= self.recovery_time_buf).type(torch.float32)
+            masks1 = (1.0 - masks2)*(self.progress_buf*self.control_dt >= self.start_time_buf).type(torch.float32)
+            masks0 = (self.progress_buf*self.control_dt < self.start_time_buf).type(torch.float32)
+            self.stage_commands[:, 0] = masks0
+            self.stage_commands[:, 1] = masks1
+            self.stage_commands[:, 2] = masks2
             # print("command",commands[0:3,:])
             current_obs = torch.cat((self.stage_commands[:, :3],
                                         self.base_ang_vel  * self.obs_scales.ang_vel,
@@ -702,7 +602,7 @@ class LeggedRobotRec(BaseTask):
             self.root_states[env_ids] = self.base_init_state
             self.root_states[env_ids, :3] += self.env_origins[env_ids]
         # base velocities
-        self.root_states[env_ids, 7:13] = torch_rand_float(-0.1, 0.1, (len(env_ids), 6), device=self.device) # [7:10]: lin vel, [10:13]: ang vel
+        self.root_states[env_ids, 7:13] = torch_rand_float(-0.3, 0.3, (len(env_ids), 6), device=self.device) # [7:10]: lin vel, [10:13]: ang vel
         env_ids_int32 = env_ids.to(dtype=torch.int32)
         self.gym.set_actor_root_state_tensor_indexed(self.sim,
                                                      gymtorch.unwrap_tensor(self.root_states),
@@ -888,11 +788,11 @@ class LeggedRobotRec(BaseTask):
         self.default_dof_pos = self.default_dof_pos.unsqueeze(0)
         # stage pos 
         ######
-        self.crawled_dof_positions = torch.zeros(self.num_dof, dtype=torch.float, device=self.device, requires_grad=False)
+        self.balance_dof_positions = torch.zeros(self.num_dof, dtype=torch.float, device=self.device, requires_grad=False)
         for i in range(self.num_dofs):
             name = self.dof_names[i]
-            angle = self.cfg.init_state.crawled_joint_angles[name]
-            self.crawled_dof_positions[i] = angle
+            angle = self.cfg.init_state.balance_joint_angles[name]
+            self.balance_dof_positions[i] = angle
             found = False
             for dof_name in self.cfg.control.stiffness.keys():
                 if dof_name in name:
@@ -904,28 +804,9 @@ class LeggedRobotRec(BaseTask):
                 self.d_gains[i] = 0.
                 if self.cfg.control.control_type in ["P", "V"]:
                     print(f"PD gain of joint {name} were not defined, setting them to zero")
-        self.crawled_dof_positions = self.crawled_dof_positions.unsqueeze(0)
-        self.clear_dof_positions = torch.zeros(self.num_dof, dtype=torch.float, device=self.device, requires_grad=False)
-        for i in range(self.num_dofs):
-            name = self.dof_names[i]
-            angle = self.cfg.init_state.clear_joint_angles[name]
-            self.clear_dof_positions[i] = angle
-            found = False
-            for dof_name in self.cfg.control.stiffness.keys():
-                if dof_name in name:
-                    self.p_gains[i] = self.cfg.control.stiffness[dof_name]
-                    self.d_gains[i] = self.cfg.control.damping[dof_name]
-                    found = True
-            if not found:
-                self.p_gains[i] = 0.
-                self.d_gains[i] = 0.
-                if self.cfg.control.control_type in ["P", "V"]:
-                    print(f"PD gain of joint {name} were not defined, setting them to zero")
-        self.clear_dof_positions = self.clear_dof_positions.unsqueeze(0)
-        print("#######dof#######")
-        print(self.dof_names)
+        self.balance_dof_positions = self.balance_dof_positions.unsqueeze(0)
         print(self.default_dof_pos)
-        print(self.crawled_dof_positions)
+        print(self.balance_dof_positions)
 
     def _prepare_reward_function(self):
         """ Prepares a list of reward functions, whcih will be called to compute the total reward.
@@ -1338,5 +1219,5 @@ class LeggedRobotRec(BaseTask):
         # second order smoothness
         return torch.sum(torch.square(self.actions - self.last_actions - self.last_actions + self.last_last_actions), dim=1)
 
-    def _reward_sideroll(self):
+    def _reward_balance(self):
         return torch.sum(self.rew_buf_list, dim=1)

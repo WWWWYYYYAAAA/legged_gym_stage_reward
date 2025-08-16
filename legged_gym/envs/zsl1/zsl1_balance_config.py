@@ -30,7 +30,7 @@
 
 from legged_gym.envs.base.legged_robot_config import LeggedRobotCfg, LeggedRobotCfgPPO
 
-class ZSL1BF2Cfg( LeggedRobotCfg ):
+class ZSL1BalanceCfg( LeggedRobotCfg ):
     class env:
         num_envs = 4096
         num_one_step_observations = 45
@@ -39,10 +39,10 @@ class ZSL1BF2Cfg( LeggedRobotCfg ):
         num_actions = 12
         env_spacing = 3.  # not used with heightfields/trimeshes 
         send_timeouts = True # send time out information to the algorithm
-        episode_length_s = 10 # episode length in seconds
+        episode_length_s = 20 # episode length in seconds
 
     class init_state( LeggedRobotCfg.init_state ):
-        pos = [0.0, 0.0, 0.33] # x,y,z [m]
+        pos = [0.0, 0.0, 0.35] # x,y,z [m]
         default_joint_angles = { # = target angles [rad] when action = 0.0
             # 'FL_ABAD_JOINT': 0.1,   # [rad]
             # 'RL_ABAD_JOINT': 0.1,   # [rad]
@@ -64,31 +64,48 @@ class ZSL1BF2Cfg( LeggedRobotCfg ):
             'RR_hip_joint': -0.1,   # [rad]
 
             'FL_thigh_joint': 0.8,     # [rad]
-            'RL_thigh_joint': 1.,   # [rad]
+            'RL_thigh_joint': 1.0,   # [rad]
             'FR_thigh_joint': 0.8,     # [rad]
-            'RR_thigh_joint': 1.,   # [rad]
+            'RR_thigh_joint': 1.0,   # [rad]
 
             'FL_calf_joint': -1.5,   # [rad]
             'RL_calf_joint': -1.5,    # [rad]
             'FR_calf_joint': -1.5,  # [rad]
             'RR_calf_joint': -1.5,    # [rad]
         }
-        crawled_joint_angles = {
-            'FL_hip_joint': 0.1,   # [rad]
-            'RL_hip_joint': 0.1,   # [rad]
-            'FR_hip_joint': -0.1,  # [rad]
-            'RR_hip_joint': -0.1,   # [rad]
 
-            'FL_thigh_joint': 1.5,     # [rad]
-            'RL_thigh_joint': 1.5,   # [rad]
-            'FR_thigh_joint': 1.5,     # [rad]
-            'RR_thigh_joint': 1.5,   # [rad]
+        balance_joint_angles = {
+            'FL_hip_joint': -0.1,   # [rad]
+            'RL_hip_joint': 0.25,   # [rad]
+            'FR_hip_joint': -0.25 ,  # [rad]
+            'RR_hip_joint': 0.1,   # [rad]
 
-            'FL_calf_joint': -2.6,   # [rad]
-            'RL_calf_joint': -2.6,    # [rad]
-            'FR_calf_joint': -2.6,  # [rad]
-            'RR_calf_joint': -2.6,    # [rad]
+            'FL_thigh_joint': 0.8,     # [rad]
+            'RL_thigh_joint': 1.0,   # [rad]
+            'FR_thigh_joint': 0.8,     # [rad]
+            'RR_thigh_joint': 1.0,   # [rad]
+
+            'FL_calf_joint': -1.45,   # [rad]
+            'RL_calf_joint': -1.5,    # [rad]
+            'FR_calf_joint': -1.5,  # [rad]
+            'RR_calf_joint': -1.45,    # [rad]
         }
+        # prepared_joint_angles = {
+        #     'FL_hip_joint': -0.0,   # [rad]
+        #     'RL_hip_joint': -0.0,   # [rad]
+        #     'FR_hip_joint': 0.0 ,  # [rad]
+        #     'RR_hip_joint': 0.0,   # [rad]
+
+        #     'FL_thigh_joint': 2.0,     # [rad]
+        #     'RL_thigh_joint': 2.0,   # [rad]
+        #     'FR_thigh_joint': 2.0,     # [rad]
+        #     'RR_thigh_joint': 2.0,   # [rad]
+
+        #     'FL_calf_joint': -2.5,   # [rad]
+        #     'RL_calf_joint': -2.5,    # [rad]
+        #     'FR_calf_joint': -2.5,  # [rad]
+        #     'RR_calf_joint': -2.5,    # [rad]
+        # }
         rot = [0.0, 0.0, 0.0, 1.0] # x,y,z,w [quat]
         lin_vel = [0.0, 0.0, 0.0]  # x,y,z [m/s]
         ang_vel = [0.0, 0.0, 0.0]  # x,y,z [rad/s]
@@ -121,8 +138,8 @@ class ZSL1BF2Cfg( LeggedRobotCfg ):
     class control( LeggedRobotCfg.control ):
         # PD Drive parameters:
         control_type = 'P'
-        stiffness = {'hip_joint': 40.0, "thigh_joint":75, "calf_joint":60}  # [N*m/rad]
-        damping = {'hip_joint': 1.0, "thigh_joint":1.25, "calf_joint":1.25}     # [N*m*s/rad]
+        stiffness = {'joint': 20.0}  # [N*m/rad]
+        damping = {'joint': 0.5}     # [N*m*s/rad]
         # action scale: target angle = actionScale * action + defaultAngle
         action_scale = 0.25
         # decimation: Number of control action updates @ sim DT per policy DT
@@ -130,7 +147,7 @@ class ZSL1BF2Cfg( LeggedRobotCfg ):
         hip_reduction = 1.0
 
     class commands( LeggedRobotCfg.commands ):
-            curriculum = True
+            curriculum = False
             max_curriculum = 2.0
             num_commands = 4 # default: lin_vel_x, lin_vel_y, ang_vel_yaw, heading (in heading mode ang_vel_yaw is recomputed from heading error)
             resampling_time = 10. # time before command are changed[s]
@@ -146,40 +163,44 @@ class ZSL1BF2Cfg( LeggedRobotCfg ):
         name = "DOG"
         foot_name = "foot"
         calf_name = "calf"
-        penalize_contacts_on = ["thigh", "calf", "base", "hip"]
-        terminate_after_contacts_on = ["base"]
+        penalize_contacts_on = ["thigh", "calf", "base"]
+        # terminate_after_contacts_on = ["base"]
         privileged_contacts_on = ["base", "thigh", "calf"]
         self_collisions = 1 # 1 to disable, 0 to enable...bitwise filter
         flip_visual_attachments = False # Some .obj meshes must be flipped from y-up to z-up
         
+    class domain_rand:
+        randomize_friction = True
+        friction_range = [0.5, 1.25]
+        randomize_base_mass = False
+        added_mass_range = [-1., 1.]
+        push_robots = True
+        push_interval_s = 15
+        max_push_vel_xy = 1.
+    
     class rewards( LeggedRobotCfg.rewards ):
         soft_dof_pos_limit = 0.9
-        base_height_target = 0.33
-        soft_dof_pos_limit = 0.9
-        soft_dof_vel_limit = 0.9
-        soft_torque_limit = 0.9
+        base_height_target = 0.3
+        tracking_sigma = 0.33
+        only_positive_rewards = False
         class scales( LeggedRobotCfg.rewards.scales ):
-            torques = -0.0002
-            dof_pos_limits = -20.0
-            termination = -10.0
-            dof_vel_limits = -1.0
-            torque_limits = -1.0
-            dof_vel = -0.005
-            # ang_vel_y = -0.05
+            # torques = -0.00002
+            dof_pos_limits = -10.0
+            balance = 1.0
+            smoothness = -0.01
+            dof_vel = -0.001
+            dof_acc = -0.000005
+            collision = -0.5
             # termination = -1.0
-            # orientation_x = -5.0
-            collision = -10.0
-            backflip = 1.0
-            smoothness = -0.2
             
 
 
-class ZSL1BF2CfgPPO( LeggedRobotCfgPPO ):
+class ZSL1BalanceCfgPPO( LeggedRobotCfgPPO ):
     class algorithm( LeggedRobotCfgPPO.algorithm ):
         entropy_coef = 0.01
     class runner( LeggedRobotCfgPPO.runner ):
         run_name = ''
-        experiment_name = 'backf2_zsl1'
+        experiment_name = 'balance_zsl1'
         max_iterations = 500000
 
   
