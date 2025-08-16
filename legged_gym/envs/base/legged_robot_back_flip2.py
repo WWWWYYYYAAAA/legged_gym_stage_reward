@@ -270,7 +270,7 @@ class LeggedRobotBF2(BaseTask):
         # com_height = torch.mean(self.root_states[:, 2].unsqueeze(1) - self.measured_heights, dim=1)
         com_height = self.base_positions[:, 2]
         self.rew_buf_list[:, 0] =  self.stage_buf[:, 0]*(-torch.abs(com_height - 0.33))*5.0
-        self.rew_buf_list[:, 0] += self.stage_buf[:, 1]*(-torch.abs(com_height - 0.2))
+        self.rew_buf_list[:, 0] += self.stage_buf[:, 1]*(-torch.abs(com_height - 0.18))
         self.rew_buf_list[:, 0] += self.stage_buf[:, 2]*(com_height <= 0.5)*(com_height)
         self.rew_buf_list[:, 0] += self.stage_buf[:, 3]*(com_height <= 0.5)*(com_height)
         self.rew_buf_list[:, 0] += self.stage_buf[:, 4]*(-torch.abs(com_height - 0.33))
@@ -288,22 +288,23 @@ class LeggedRobotBF2(BaseTask):
         base_ang_vel_y = base_ang_vels[:, 1]
         self.rew_buf_list[:, 2] =  self.stage_buf[:, 0]*(-vel_penalty)*3.0
         self.rew_buf_list[:, 2] += self.stage_buf[:, 1]*(-vel_penalty)*3.0
-        self.rew_buf_list[:, 2] += self.stage_buf[:, 2]*(1.0 - self.is_one_turn_buf)*(-base_ang_vel_y)*5.0
+        self.rew_buf_list[:, 2] += self.stage_buf[:, 2]*(1.0 - self.is_one_turn_buf)*(-base_ang_vel_y)*3.0
         self.rew_buf_list[:, 2] += self.stage_buf[:, 3]*(1.0 - self.is_one_turn_buf)*(-base_ang_vel_y)*2.0
         self.rew_buf_list[:, 2] += self.stage_buf[:, 4]*(-vel_penalty)*3.0
         # energy
         # self.rew_buf_list[:, 3] = -torch.square(self.dof_torques).mean(dim=-1)
         # style
         body_x = quat_rotate_inverse(self.base_quaternions, self.world_x)
-        self.rew_buf_list[:, 4]  = -torch.abs(self.dof_positions - self.default_dof_pos).mean(dim=-1)
+        self.rew_buf_list[:, 4]  = -torch.abs(self.dof_positions - self.default_dof_pos).mean(dim=-1)*(1-self.stage_buf[:, 1])
+        self.rew_buf_list[:, 4]  += (1.0-torch.abs(self.dof_positions - self.crawled_dof_positions).mean(dim=-1))*self.stage_buf[:, 1]*5.0
         self.rew_buf_list[:, 4]  += -torch.abs(self.dof_positions[:,[0,3,6,9]] - self.default_dof_pos[:,[0,3,6,9]]).mean(dim=-1)*10.0
         self.rew_buf_list[:, 4]  += -self.stage_buf[:, 0]*torch.abs(self.dof_positions - self.default_dof_pos).mean(dim=-1)*5.0
         self.rew_buf_list[:, 4]  += self.stage_buf[:, 4]*(7.5-torch.abs(self.dof_positions - self.default_dof_pos).mean(dim=-1)*7.5)
         
         self.rew_buf_list[:, 3]  =  self.stage_buf[:, 1]*1.0
-        self.rew_buf_list[:, 3]  +=  self.stage_buf[:, 2]*5.0
-        self.rew_buf_list[:, 3]  +=  self.stage_buf[:, 3]*10.0
-        self.rew_buf_list[:, 3]  +=  self.stage_buf[:, 4]*(17.0-torch.abs(body_x[:,1])*5.0)
+        self.rew_buf_list[:, 3]  +=  self.stage_buf[:, 2]*7.0
+        self.rew_buf_list[:, 3]  +=  self.stage_buf[:, 3]*12.0
+        self.rew_buf_list[:, 3]  +=  self.stage_buf[:, 4]*(20.0-torch.abs(body_x[:,1])*5.0)
         # self.rew_buf[:] = torch.sum(self.rew_buf_list, dim=1)
         
 

@@ -79,15 +79,15 @@ class ZSL1BF2Cfg( LeggedRobotCfg ):
             'FR_hip_joint': -0.1,  # [rad]
             'RR_hip_joint': -0.1,   # [rad]
 
-            'FL_thigh_joint': 1.5,     # [rad]
-            'RL_thigh_joint': 1.5,   # [rad]
-            'FR_thigh_joint': 1.5,     # [rad]
-            'RR_thigh_joint': 1.5,   # [rad]
+            'FL_thigh_joint': 1.4,     # [rad]
+            'RL_thigh_joint': 1.4,   # [rad]
+            'FR_thigh_joint': 1.4,     # [rad]
+            'RR_thigh_joint': 1.4,   # [rad]
 
-            'FL_calf_joint': -2.6,   # [rad]
-            'RL_calf_joint': -2.6,    # [rad]
-            'FR_calf_joint': -2.6,  # [rad]
-            'RR_calf_joint': -2.6,    # [rad]
+            'FL_calf_joint': -2.5,   # [rad]
+            'RL_calf_joint': -2.5,    # [rad]
+            'FR_calf_joint': -2.5,  # [rad]
+            'RR_calf_joint': -2.5,    # [rad]
         }
         rot = [0.0, 0.0, 0.0, 1.0] # x,y,z,w [quat]
         lin_vel = [0.0, 0.0, 0.0]  # x,y,z [m/s]
